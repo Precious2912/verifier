@@ -5,54 +5,33 @@ namespace TransactionSystem.Domain.Entities;
 
 public class Transaction : BaseEntity
 {
-    public Guid AccountId { get; private set; }
-    public TransactionType Type { get; private set; }
-    public decimal Amount { get; private set; }
-    public string? Description { get; private set; }
 
-    private Transaction()
+    private Transaction(string accountNumber, TransactionType type, decimal amount, string? destAccountNumber)
     {
-    }
-
-    private Transaction(
-        Guid accountId,
-        TransactionType type,
-        decimal amount,
-        string? description)
-    {
-        if (accountId == Guid.Empty)
-            throw new DomainException("Account ID is required.");
+        if (string.IsNullOrWhiteSpace(accountNumber))
+            throw new DomainException("Account Number is required.");
 
         if (amount <= 0)
             throw new DomainException("Transaction amount must be greater than zero.");
 
-        AccountId = accountId;
+        AccountNumber = accountNumber;
         Type = type;
         Amount = amount;
-        Description = description;
+        DestAccountNumber = destAccountNumber;
     }
 
-    public static Transaction CreateCredit(
-        Guid accountId,
-        decimal amount,
-        string? description = null)
+    public string AccountNumber { get; private set; }
+    public TransactionType Type { get; private set; }
+    public decimal Amount { get; private set; }
+    public string? DestAccountNumber { get; set; } = string.Empty;
+
+    public static Transaction CreateCredit(string accountNumber, decimal amount, string? destAccountNumber = null)
     {
-        return new Transaction(
-            accountId,
-            TransactionType.Credit,
-            amount,
-            description);
+        return new Transaction(accountNumber, TransactionType.Credit, amount, destAccountNumber);
     }
 
-    public static Transaction CreateDebit(
-        Guid accountId,
-        decimal amount,
-        string? description = null)
+    public static Transaction CreateDebit(string accountNumber, decimal amount, string? destAccountNumber = null)
     {
-        return new Transaction(
-            accountId,
-            TransactionType.Debit,
-            amount,
-            description);
+        return new Transaction(accountNumber, TransactionType.Debit, amount, destAccountNumber);
     }
 }

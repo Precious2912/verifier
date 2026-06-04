@@ -10,5 +10,4 @@ public abstract class BaseEntity
     {
         ModifiedAt = DateTime.UtcNow;
     }
-
 }
