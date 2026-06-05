@@ -6,13 +6,16 @@ public class Account : BaseEntity
 {
     private readonly List<Transaction> _transactions = [];
 
+    private Account()
+    {
+    }
     public Account(string accountNumber, string accountName)
     {
         if (string.IsNullOrWhiteSpace(accountNumber))
             throw new DomainException("Account number is required.");
 
         if (string.IsNullOrWhiteSpace(accountName))
-            throw new DomainException("Owner name is required.");
+            throw new DomainException("Account name is required.");
 
         AccountNumber = accountNumber;
         AccountName = accountName;
@@ -27,23 +30,29 @@ public class Account : BaseEntity
 
     public IReadOnlyCollection<Transaction> Transactions => _transactions.AsReadOnly();
 
-    public Transaction Credit(decimal amount, string? destAccountNumber = null)
+    public Transaction Credit(string reference, decimal amount, string debitAccount)
     {
+        if (string.IsNullOrWhiteSpace(reference))
+            throw new DomainException("Transaction reference is required.");
+
         if (amount <= 0)
             throw new DomainException("Credit amount must be greater than zero.");
 
         Balance += amount;
         MarkAsModified();
 
-        var transaction = Transaction.CreateCredit(AccountNumber, amount, destAccountNumber);
+        var transaction = Transaction.CreateCredit(reference, debitAccount, amount, AccountNumber);
 
         _transactions.Add(transaction);
 
         return transaction;
     }
 
-    public Transaction Debit(decimal amount, string? destAccountNumber = null)
+    public Transaction Debit(string reference, decimal amount, string creditAccount)
     {
+        if (string.IsNullOrWhiteSpace(reference))
+            throw new DomainException("Transaction reference is required.");
+
         if (amount <= 0)
             throw new DomainException("Debit amount must be greater than zero.");
 
@@ -53,7 +62,7 @@ public class Account : BaseEntity
         Balance -= amount;
         MarkAsModified();
 
-        var transaction = Transaction.CreateDebit(AccountNumber, amount, destAccountNumber);
+        var transaction = Transaction.CreateDebit(reference, AccountNumber, amount, creditAccount);
 
         _transactions.Add(transaction);
 

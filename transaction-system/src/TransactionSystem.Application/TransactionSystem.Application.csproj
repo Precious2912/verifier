@@ -10,4 +10,8 @@
     <ProjectReference Include="../TransactionSystem.Domain/TransactionSystem.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+  </ItemGroup>
+
 </Project>

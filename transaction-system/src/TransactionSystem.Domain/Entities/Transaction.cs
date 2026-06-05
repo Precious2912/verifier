@@ -5,33 +5,43 @@ namespace TransactionSystem.Domain.Entities;
 
 public class Transaction : BaseEntity
 {
-
-    private Transaction(string accountNumber, TransactionType type, decimal amount, string? destAccountNumber)
+    private Transaction()
     {
-        if (string.IsNullOrWhiteSpace(accountNumber))
-            throw new DomainException("Account Number is required.");
+    }
+    private Transaction(string reference, TransactionType type, string debitAccount, decimal amount, string creditAccount)
+    {
+        if (string.IsNullOrWhiteSpace(reference))
+            throw new DomainException("Transaction reference is required.");
+
+        if (string.IsNullOrWhiteSpace(debitAccount))
+            throw new DomainException("Debit Account is required.");
 
         if (amount <= 0)
             throw new DomainException("Transaction amount must be greater than zero.");
 
-        AccountNumber = accountNumber;
+        if (string.IsNullOrWhiteSpace(creditAccount))
+            throw new DomainException("Credit Account is required.");
+
+        Reference = reference;
         Type = type;
+        DebitAccount = debitAccount;
         Amount = amount;
-        DestAccountNumber = destAccountNumber;
+        CreditAccount = creditAccount;
     }
 
-    public string AccountNumber { get; private set; }
+    public string Reference { get; private set; } = string.Empty;
+    public string DebitAccount { get; private set; } = string.Empty;
     public TransactionType Type { get; private set; }
     public decimal Amount { get; private set; }
-    public string? DestAccountNumber { get; set; } = string.Empty;
+    public string? CreditAccount { get; private set; } = string.Empty;
 
-    public static Transaction CreateCredit(string accountNumber, decimal amount, string? destAccountNumber = null)
+    public static Transaction CreateCredit(string reference, string debitAccount, decimal amount, string creditAccount)
     {
-        return new Transaction(accountNumber, TransactionType.Credit, amount, destAccountNumber);
+        return new Transaction(reference, TransactionType.Credit, debitAccount, amount, creditAccount);
     }
 
-    public static Transaction CreateDebit(string accountNumber, decimal amount, string? destAccountNumber = null)
+    public static Transaction CreateDebit(string reference, string debitAccount, decimal amount, string creditAccount)
     {
-        return new Transaction(accountNumber, TransactionType.Debit, amount, destAccountNumber);
+        return new Transaction(reference, TransactionType.Debit, debitAccount, amount, creditAccount);
     }
 }
