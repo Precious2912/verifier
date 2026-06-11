@@ -3,6 +3,6 @@
     <Project Path="src/TransactionSystem.Api/TransactionSystem.Api.csproj" />
     <Project Path="src/TransactionSystem.Application/TransactionSystem.Application.csproj" />
     <Project Path="src/TransactionSystem.Domain/TransactionSystem.Domain.csproj" />
-    <Project Path="src/TransactioSystem.Infrastructure/TransactioSystem.Infrastructure.csproj" />
+    <Project Path="src/TransactionSystem.Infrastructure/TransactionSystem.Infrastructure.csproj" />
   </Folder>
 </Solution>

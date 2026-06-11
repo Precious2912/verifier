@@ -4,8 +4,6 @@ namespace TransactionSystem.Domain.Entities;
 
 public class Account : BaseEntity
 {
-    private readonly List<Transaction> _transactions = [];
-
     private Account()
     {
     }
@@ -28,8 +26,6 @@ public class Account : BaseEntity
 
     public decimal Balance { get; private set; }
 
-    public IReadOnlyCollection<Transaction> Transactions => _transactions.AsReadOnly();
-
     public Transaction Credit(string reference, decimal amount, string debitAccount)
     {
         if (string.IsNullOrWhiteSpace(reference))
@@ -42,8 +38,6 @@ public class Account : BaseEntity
         MarkAsModified();
 
         var transaction = Transaction.CreateCredit(reference, debitAccount, amount, AccountNumber);
-
-        _transactions.Add(transaction);
 
         return transaction;
     }
@@ -63,8 +57,6 @@ public class Account : BaseEntity
         MarkAsModified();
 
         var transaction = Transaction.CreateDebit(reference, AccountNumber, amount, creditAccount);
-
-        _transactions.Add(transaction);
 
         return transaction;
     }

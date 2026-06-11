@@ -46,30 +46,31 @@ public class AccountService(IAppDbContext dbContext) : IAccountService
         return account is null ? null : MapAccount(account);
     }
 
-    public async Task<PostTransactionResponse> PostTransactionAsync(PostTransactionRequest request, CancellationToken cancellationToken = default)
+    public async Task<PostTransactionResponse> PostTransactionAsync(
+        PostTransactionRequest request,
+        CancellationToken cancellationToken = default)
     {
-        if (string.Equals(request.DebitAccount, request.CreditAccount, StringComparison.OrdinalIgnoreCase)) //Accounts are alphanumeric
+        if (string.Equals(
+                request.DebitAccount,
+                request.CreditAccount,
+                StringComparison.OrdinalIgnoreCase))
+        {
             throw new DomainException("Debit and credit accounts cannot be the same.");
+        }
 
         var debitAccount = await _dbContext.Accounts
-            .Include(x => x.Transactions)
-            .FirstOrDefaultAsync(x => x.AccountNumber == request.DebitAccount, cancellationToken);
-
-        if (debitAccount is null)
-            throw new DomainException("Debit account not found.");
+            .FirstOrDefaultAsync(x => x.AccountNumber == request.DebitAccount, cancellationToken) ?? throw new DomainException("Debit account not found.");
 
         var creditAccount = await _dbContext.Accounts
-            .Include(x => x.Transactions)
-            .FirstOrDefaultAsync(x => x.AccountNumber == request.CreditAccount, cancellationToken);
-
-        if (creditAccount is null)
-            throw new DomainException("Credit account not found.");
+            .FirstOrDefaultAsync(x => x.AccountNumber == request.CreditAccount, cancellationToken) ?? throw new DomainException("Credit account not found.");
 
         var reference = GenerateTransactionReference();
 
         var debitEntry = debitAccount.Debit(reference, request.Amount, request.CreditAccount);
 
         var creditEntry = creditAccount.Credit(reference, request.Amount, request.DebitAccount);
+
+        await _dbContext.Transactions.AddRangeAsync([debitEntry, creditEntry], cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -82,7 +83,6 @@ public class AccountService(IAppDbContext dbContext) : IAccountService
             CreatedAt = debitEntry.CreatedAt
         };
     }
-
     private async Task<string> GenerateUniqueAccountNumberAsync(CancellationToken cancellationToken)
     {
         string accountNumber;
