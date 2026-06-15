@@ -22,21 +22,6 @@ public class AccountService(IAppDbContext dbContext) : IAccountService
         return MapAccount(account);
     }
 
-    public async Task<IReadOnlyCollection<AccountResponse>> GetAccountsAsync(CancellationToken cancellationToken = default)
-    {
-        return await _dbContext.Accounts
-            .AsNoTracking()
-            .OrderBy(x => x.AccountNumber)
-            .Select(x => new AccountResponse
-            {
-                AccountNumber = x.AccountNumber,
-                AccountName = x.AccountName,
-                Balance = x.Balance,
-                CreatedAt = x.CreatedAt,
-            })
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<AccountResponse?> GetAccountByAccountNumberAsync(string accountNumber, CancellationToken cancellationToken = default)
     {
         var account = await _dbContext.Accounts

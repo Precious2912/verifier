@@ -1,6 +1,0 @@
-@EventSourcedSystem.Api_HostAddress = http://localhost:5278
-
-GET {{EventSourcedSystem.Api_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
