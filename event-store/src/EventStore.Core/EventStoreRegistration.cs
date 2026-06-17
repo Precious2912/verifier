@@ -7,8 +7,7 @@ namespace EventStore.Core;
 
 public static class EventStoreRegistration
 {
-    public static IServiceCollection AddEventStore(
-        this IServiceCollection services, string connectionString)
+    public static IServiceCollection AddEventStore(this IServiceCollection services, string connectionString)
     {
         services.AddMarten(options =>
         {
