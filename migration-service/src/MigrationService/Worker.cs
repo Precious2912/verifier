@@ -1,4 +1,4 @@
-namespace Migration.Worker;
+namespace MigrationService;
 
 public class Worker(ILogger<Worker> logger) : BackgroundService
 {
