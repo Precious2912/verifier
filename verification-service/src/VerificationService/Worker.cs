@@ -1,4 +1,4 @@
-namespace Verification.Worker;
+namespace VerificationService;
 
 public class Worker(ILogger<Worker> logger) : BackgroundService
 {

@@ -1,5 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Verification.Worker/Verification.Worker.csproj" />
+    <Project Path="src/VerificationService/VerificationService.csproj" />
   </Folder>
 </Solution>
