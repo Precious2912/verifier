@@ -1,10 +1,12 @@
 using EventStore.Core.Events;
 using Marten;
 using MigrationService.Crud;
+using MigrationService.Polling;
+using MigrationService.Shared;
 
 namespace MigrationService.Backfill;
 
-public class BackfillRunner(Reader crudReader, IDocumentStore eventStore, ILogger<BackfillRunner> logger)
+public class BackfillRunner(Reader crudReader, CheckpointStore checkpointStore, IDocumentStore eventStore, ILogger<BackfillRunner> logger)
 {
     public async Task RunAsync(CancellationToken ct)
     {
@@ -35,24 +37,13 @@ public class BackfillRunner(Reader crudReader, IDocumentStore eventStore, ILogge
 
         foreach (var t in transactions)
         {
-            if (t.Type == "Debit")
-                Add(t.DebitAccount,
-                    new AccountDebited(
-                        Reference: t.Reference,
-                        DebitAccount: t.DebitAccount,
-                        CreditAccount: t.CreditAccount,
-                        Amount: t.Amount,
-                        OccurredAt: t.CreatedAt));
-            else if (t.Type == "Credit")
-                Add(t.CreditAccount,
-                    new AccountCredited(
-                        Reference: t.Reference,
-                        DebitAccount: t.DebitAccount,
-                        CreditAccount: t.CreditAccount,
-                        Amount: t.Amount,
-                        OccurredAt: t.CreatedAt));
-            else
+            var mapped = EventMapper.Map(t);
+            if (mapped is null)
+            {
                 logger.LogWarning($"Unknown transaction type '{t.Type}' for ref {t.Reference}");
+                continue;
+            }
+            Add(mapped.Value.StreamKey, mapped.Value.Event);
         }
 
         // Start each stream once with its full set of events.
@@ -61,6 +52,21 @@ public class BackfillRunner(Reader crudReader, IDocumentStore eventStore, ILogge
             session.Events.StartStream(streamKey, events.ToArray());
 
         await session.SaveChangesAsync(ct);
+
+        // Seed the checkpoint so sync picks up only transactions newer than these.
+        if (transactions.Count > 0)
+        {
+            var last = transactions
+                .OrderBy(t => t.CreatedAt)
+                .ThenBy(t => t.Id)
+                .Last();
+
+            await checkpointStore.EnsureTableExistsAsync();
+            await checkpointStore.SetCheckpointAsync(new Checkpoint(last.CreatedAt, last.Id));
+
+            logger.LogInformation(
+                "Checkpoint seeded at {CreatedAt} / {Id}.", last.CreatedAt, last.Id);
+        }
 
         logger.LogInformation($"Backfill complete: {streams.Count} streams written.");
     }

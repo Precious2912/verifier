@@ -1,4 +1,5 @@
 using Dapper;
+using MigrationService.Shared;
 using Npgsql;
 
 namespace MigrationService.Crud;
@@ -7,6 +8,7 @@ public class Reader(string connectionString)
 {
     private readonly string _connectionString = connectionString;
 
+    // Backfilling
     public async Task<IReadOnlyList<CrudAccount>> GetAccountsAsync()
     {
         await using var conn = new NpgsqlConnection(_connectionString);
@@ -18,6 +20,15 @@ public class Reader(string connectionString)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactions);
+        return [.. rows];
+    }
+
+    // Polling
+    public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsSinceAsync(
+    DateTime lastCreatedAt, Guid lastId)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactionsAfterCheckpoint, new { lastCreatedAt, lastId });
         return [.. rows];
     }
 }
