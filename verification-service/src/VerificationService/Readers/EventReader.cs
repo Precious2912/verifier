@@ -8,7 +8,7 @@ public class EventReader(string connectionString)
 {
     private readonly string _connectionString = connectionString;
 
-    public async Task<IReadOnlyList<StoredEvent>> GetEventsAsync()
+    public async Task<IReadOnlyList<EventRecord>> GetEventsAsync()
     {
         const string sql = """
             SELECT stream_id AS StreamId, type AS Type,
@@ -21,7 +21,7 @@ public class EventReader(string connectionString)
             ORDER BY seq_id;
             """;
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<StoredEvent>(sql);
-        return rows.ToList();
+        var rows = await conn.QueryAsync<EventRecord>(sql);
+        return [.. rows]; //rows.ToList();
     }
 }

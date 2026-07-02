@@ -22,7 +22,7 @@ public class CrudReader(string connectionString)
     public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsAsync()
     {
         const string sql = """
-            SELECT "Reference" AS Reference, "Type" AS Type, "DebitAccount" AS DebitAccount, "CreditAccount" AS CreditAccount, 
+            SELECT "Id" AS Id, "Reference" AS Reference, "Type" AS Type, "DebitAccount" AS DebitAccount, "CreditAccount" AS CreditAccount, 
             "Amount" AS Amount, "CreatedAt" AS CreatedAt
             FROM "Transactions";
             """;
