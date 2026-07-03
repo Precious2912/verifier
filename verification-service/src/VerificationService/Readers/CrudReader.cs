@@ -31,4 +31,23 @@ public class CrudReader(string connectionString)
         var rows = await conn.QueryAsync<CrudTransaction>(sql);
         return rows.ToList();
     }
+
+    public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsInSliceAsync(
+    DateTime fromCreatedAt, Guid fromId,
+    DateTime toCreatedAt, Guid toId)
+    {
+        const string sql = """
+        SELECT "Reference" AS Reference, "Type" AS Type,
+               "DebitAccount" AS DebitAccount, "CreditAccount" AS CreditAccount,
+               "Amount" AS Amount, "CreatedAt" AS CreatedAt, "Id" AS Id
+        FROM "Transactions"
+        WHERE ("CreatedAt", "Id") >  (@fromCreatedAt, @fromId)
+          AND ("CreatedAt", "Id") <= (@toCreatedAt, @toId)
+        ORDER BY "CreatedAt", "Id";
+        """;
+        await using var conn = new NpgsqlConnection(_connectionString);
+        var rows = await conn.QueryAsync<CrudTransaction>(
+            sql, new { fromCreatedAt, fromId, toCreatedAt, toId });
+        return rows.ToList();
+    }
 }

@@ -1,5 +1,5 @@
+using VerificationService.Checkpoints;
 using VerificationService.Models;
-using VerificationService.Readers;
 using VerificationService.Verdicts;
 
 namespace VerificationService.Invariants;
@@ -9,7 +9,7 @@ public class RecordLevelInvariant
     public IReadOnlyList<RecordVerdict> Check(
         IReadOnlyList<CrudTransaction> transactions,
         IReadOnlyList<EventRecord> events,
-        VerificationCheckpoint? checkpoint)
+        MigrationCheckpoint? checkpoint)
     {
         // Lookup of events by their matching key: (Reference, Type, Account).
         // Event type maps back to CRUD type: account_debited -> Debit, account_credited -> Credit.
@@ -95,7 +95,7 @@ public class RecordLevelInvariant
     // A CRUD transaction is "after" the checkpoint (legitimately unsynced) if its
     // (CreatedAt, Id) is strictly greater than the checkpoint's (LastCreatedAt, LastId). 
     // If the checkpoint is null, everything should be considered after it.
-    private static bool IsAfterCheckpoint(CrudTransaction t, VerificationCheckpoint? cp)
+    private static bool IsAfterCheckpoint(CrudTransaction t, MigrationCheckpoint? cp)
     {
         if (cp is null) return true; //nothing synced yet -> everything is pending
         if (t.CreatedAt > cp.LastCreatedAt) return true;

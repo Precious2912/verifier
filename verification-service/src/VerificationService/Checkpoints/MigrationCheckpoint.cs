@@ -1,15 +1,15 @@
 using Dapper;
 using Npgsql;
 
-namespace VerificationService.Readers;
+namespace VerificationService.Checkpoints;
 
-public record VerificationCheckpoint(DateTime LastCreatedAt, Guid LastId);
+public record MigrationCheckpoint(DateTime LastCreatedAt, Guid LastId);
 
-public class CheckpointReader(string connectionString)
+public class MigrationCheckpointReader(string connectionString)
 {
     private readonly string _connectionString = connectionString;
 
-    public async Task<VerificationCheckpoint?> GetAsync()
+    public async Task<MigrationCheckpoint?> GetAsync()
     {
         const string sql = """
             SELECT last_created_at AS LastCreatedAt, last_id AS LastId
@@ -17,6 +17,6 @@ public class CheckpointReader(string connectionString)
             WHERE id = 1;
             """;
         await using var conn = new NpgsqlConnection(_connectionString);
-        return await conn.QuerySingleOrDefaultAsync<VerificationCheckpoint>(sql);
+        return await conn.QuerySingleOrDefaultAsync<MigrationCheckpoint>(sql);
     }
 }
