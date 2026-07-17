@@ -8,7 +8,6 @@ using VerificationService.Verdicts;
 var builder = Host.CreateApplicationBuilder(args);
 var config = builder.Configuration;
 
-// Serilog: console (readable) + rolling file (persistent evidence)
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console(outputTemplate:

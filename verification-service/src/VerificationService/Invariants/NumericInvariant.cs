@@ -5,7 +5,7 @@ namespace VerificationService.Invariants;
 
 public class NumericInvariant
 {
-    public IReadOnlyList<NumericVerdict> Check(
+    public static IReadOnlyList<NumericVerdict> Check(
         IReadOnlyList<CrudAccount> accounts,
         IReadOnlyList<CrudTransaction> transactions,
         IReadOnlyList<EventRecord> events)
@@ -31,17 +31,12 @@ public class NumericInvariant
 
     private static VerdictStatus Classify(decimal stored, decimal crud, decimal evt)
     {
-        // Added 
-        if (stored != crud && crud != evt)
-            return VerdictStatus.SourceIntegrityViolation;
-
-        // Migration fault takes precedence: the two stores disagree.
-        if (crud != evt)
-            return VerdictStatus.MigrationFault;
-
-        // Stores agree, but stored balance doesn't match its own transactions.
         if (stored != crud)
             return VerdictStatus.SourceIntegrityViolation;
+
+        // Migration fault
+        if (crud != evt)
+            return VerdictStatus.MigrationFault;
 
         return VerdictStatus.Consistent;
     }

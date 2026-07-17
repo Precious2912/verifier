@@ -18,16 +18,16 @@ public class FaultLog(string eventsConnectionString)
         const string ddl = """
             CREATE SCHEMA IF NOT EXISTS evaluation;
             CREATE TABLE IF NOT EXISTS evaluation.injected_faults (
-                id             UUID PRIMARY KEY,
-                fault_type     TEXT NOT NULL,
-                tier           TEXT NOT NULL,
-                target_ref     TEXT,
+                id UUID PRIMARY KEY,
+                fault_type TEXT NOT NULL,
+                tier TEXT NOT NULL,
+                target_ref TEXT,
                 target_account TEXT,
-                target_detail  TEXT,
+                target_detail TEXT,
                 original_value TEXT,
                 injected_value TEXT,
-                injected_at    TIMESTAMPTZ NOT NULL,
-                reverted       BOOLEAN NOT NULL DEFAULT FALSE
+                injected_at TIMESTAMPTZ NOT NULL,
+                reverted BOOLEAN NOT NULL DEFAULT FALSE
             );
             """;
         await using var c = new NpgsqlConnection(_conn);

@@ -5,7 +5,7 @@ namespace VerificationService.Invariants;
 
 public class SnapshotInvariant
 {
-    public SnapshotVerdict Check(
+    public static SnapshotVerdict Check(
         DateTime from, DateTime to,
         IReadOnlyList<CrudTransaction> sliceTransactions,
         IReadOnlyList<EventRecord> sliceEvents)

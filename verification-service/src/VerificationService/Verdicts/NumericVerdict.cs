@@ -4,7 +4,7 @@ public enum VerdictStatus
 {
     Consistent,
     SourceIntegrityViolation, // stored balance != CRUD-derived (like manual edit)
-    MigrationFault // CRUD-derived != event-derived (dropped/duplicate/ event)
+    MigrationFault // CRUD-derived != event-derived (dropped/duplicate event)
 }
 
 public record NumericVerdict(

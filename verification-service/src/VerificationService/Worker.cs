@@ -11,9 +11,6 @@ public class Worker(
     EventReader events,
     MigrationCheckpointReader migrationCheckpoint,
     VerificationCheckpointStore verificationCheckpoint,
-    NumericInvariant numeric,
-    RecordLevelInvariant recordLevel,
-    SnapshotInvariant snapshot,
     DetectionScorer scorer,
     ILogger<Worker> logger,
     IHostApplicationLifetime lifetime)
@@ -87,11 +84,11 @@ public class Worker(
         var migrationCp = await migrationCheckpoint.GetAsync();
 
         var numericSw = Stopwatch.StartNew();
-        var numericVerdicts = numeric.Check(accounts, transactions, eventRows);
+        var numericVerdicts = NumericInvariant.Check(accounts, transactions, eventRows);
         numericSw.Stop();
 
         var recordSw = Stopwatch.StartNew();
-        var recordVerdicts = recordLevel.Check(transactions, eventRows, migrationCp);
+        var recordVerdicts = RecordLevelInvariant.Check(transactions, eventRows, migrationCp);
         recordSw.Stop();
 
         var snapshotSw = Stopwatch.StartNew();
@@ -107,7 +104,7 @@ public class Worker(
             var refs = sliceTx.Select(t => t.Reference).Distinct().ToList();
             var sliceEvents = await events.GetEventsForReferencesAsync(refs);
 
-            snapshotVerdict = snapshot.Check(from, migrationCp.LastCreatedAt, sliceTx, sliceEvents);
+            snapshotVerdict = SnapshotInvariant.Check(from, migrationCp.LastCreatedAt, sliceTx, sliceEvents);
 
             if (snapshotVerdict.Status != SnapshotStatus.EmptySlice)
                 await verificationCheckpoint.SetAsync(

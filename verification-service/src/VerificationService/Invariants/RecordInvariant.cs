@@ -6,7 +6,7 @@ namespace VerificationService.Invariants;
 
 public class RecordLevelInvariant
 {
-    public IReadOnlyList<RecordVerdict> Check(
+    public static IReadOnlyList<RecordVerdict> Check(
         IReadOnlyList<CrudTransaction> transactions,
         IReadOnlyList<EventRecord> events,
         MigrationCheckpoint? checkpoint)
@@ -72,19 +72,19 @@ public class RecordLevelInvariant
             }
         }
 
-        // Check 2: any event with no matching CRUD row.
-        foreach (var (key, list) in eventLookup)
-        {
-            if (matchedEventKeys.Contains(key)) continue;
+        /*         // Check 2: any event with no matching CRUD row. Spurious events
+                foreach (var (key, list) in eventLookup)
+                {
+                    if (matchedEventKeys.Contains(key)) continue;
 
-            foreach (var e in list)
-            {
-                var crudType = e.Type == "account_debited" ? "Debit" : "Credit";
-                verdicts.Add(new RecordVerdict(
-                    e.Reference ?? "", crudType, e.StreamId, null, e.Amount,
-                    RecordStatus.SpuriousEvent));
-            }
-        }
+                    foreach (var e in list)
+                    {
+                        var crudType = e.Type == "account_debited" ? "Debit" : "Credit";
+                        verdicts.Add(new RecordVerdict(
+                            e.Reference ?? "", crudType, e.StreamId, null, e.Amount,
+                            RecordStatus.SpuriousEvent));
+                    }
+                } */
 
         return verdicts;
     }

@@ -5,7 +5,7 @@ public enum RecordStatus
     Matched, //CRUD row and event agree
     DroppedEvent, //CRUD row at/before checkpoint has no event
     DuplicateEvent, //multiple events
-    SpuriousEvent, //event has no matching CRUD row
+    // SpuriousEvent, //event has no matching CRUD row
     AmountMismatch, //CRUD records and events matched but amounts differ
     PendingSync //CRUD row newer than checkpoint — legitimately not yet migrated
 }

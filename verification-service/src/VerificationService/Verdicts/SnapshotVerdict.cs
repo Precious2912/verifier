@@ -3,8 +3,8 @@ namespace VerificationService.Verdicts;
 public enum SnapshotStatus
 {
     Consistent,
-    CountMismatch, // dropped or duplicate events in the slice
-    SumMismatch, // amount corruption somewhere in the slice
+    CountMismatch, // dropped/duplicate events in the slice
+    SumMismatch, // amount corruption in the slice
     EmptySlice // nothing new to verify
 }
 

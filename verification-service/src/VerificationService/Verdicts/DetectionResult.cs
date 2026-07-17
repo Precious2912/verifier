@@ -29,12 +29,7 @@ public class DetectionScorer(string eventsConnectionString)
         await using var c = new NpgsqlConnection(_conn);
 
         // Read ALL active (unreverted) faults — one for isolated, several for compound.
-        var faults = (await c.QueryAsync<(string FaultType, string? TargetRef, string? TargetAccount)>("""
-            SELECT fault_type AS FaultType, target_ref AS TargetRef, target_account AS TargetAccount
-            FROM evaluation.injected_faults
-            WHERE reverted = FALSE
-            ORDER BY injected_at;
-            """)).ToList();
+        var faults = (await c.QueryAsync<(string FaultType, string? TargetRef, string? TargetAccount)>(Queries.GetFaultsAsync)).ToList();
 
         if (faults.Count == 0)
         {
@@ -55,21 +50,21 @@ public class DetectionScorer(string eventsConnectionString)
         var snapshotFlagged = result.Snapshot is not null &&
             result.Snapshot.Status is SnapshotStatus.CountMismatch or SnapshotStatus.SumMismatch;
 
-        // The set of targets we DID inject (for false-positive counting).
+        // The set of targets injected (for false-positive counting).
         var injectedAccounts = faults.Select(f => f.TargetAccount).Where(a => a != null).ToHashSet();
         var injectedRefs = faults.Select(f => f.TargetRef).Where(r => r != null).ToHashSet();
 
         // Score each fault against its own target.
         var detections = new List<FaultDetection>();
-        foreach (var f in faults)
+        foreach (var (FaultType, TargetRef, TargetAccount) in faults)
         {
-            var numericCaught = f.TargetAccount != null && numericFlagged.Contains(f.TargetAccount);
-            var recordCaught = f.TargetRef != null && recordFlagged.Contains(f.TargetRef);
+            var numericCaught = TargetAccount != null && numericFlagged.Contains(TargetAccount);
+            var recordCaught = TargetRef != null && recordFlagged.Contains(TargetRef);
             // Snapshot is slice-level: it either flagged the slice or not (can't attribute per-fault).
             var snapshotCaught = snapshotFlagged;
 
             detections.Add(new FaultDetection(
-                f.FaultType, f.TargetRef, f.TargetAccount,
+                FaultType, TargetRef, TargetAccount,
                 numericCaught, recordCaught, snapshotCaught));
         }
 
@@ -87,19 +82,7 @@ public class DetectionScorer(string eventsConnectionString)
         await EnsureResultsTableAsync(c);
         foreach (var d in detections)
         {
-            await c.ExecuteAsync("""
-                INSERT INTO evaluation.detection_results
-                    (id, fault_type, target_ref, target_account,
-                     numeric_caught, record_caught, snapshot_caught,
-                     numeric_fps, record_fps,
-                     numeric_ms, record_ms, snapshot_ms,
-                     fault_count, scored_at)
-                VALUES
-                    (@Id, @FaultType, @TargetRef, @TargetAccount,
-                     @NumericCaught, @RecordCaught, @SnapshotCaught,
-                     @NumericFPs, @RecordFPs, @NumericMs, @RecordMs, @SnapshotMs,
-                     @FaultCount, @At);
-                """, new
+            await c.ExecuteAsync(Queries.InsertResultsAsync, new
             {
                 Id = Guid.NewGuid(),
                 d.FaultType,
@@ -123,23 +106,6 @@ public class DetectionScorer(string eventsConnectionString)
 
     private static async Task EnsureResultsTableAsync(NpgsqlConnection c)
     {
-        await c.ExecuteAsync("""
-            CREATE TABLE IF NOT EXISTS evaluation.detection_results (
-                id UUID PRIMARY KEY,
-                fault_type TEXT NOT NULL,
-                target_ref TEXT,
-                target_account TEXT,
-                numeric_caught BOOLEAN NOT NULL,
-                record_caught BOOLEAN NOT NULL,
-                snapshot_caught BOOLEAN NOT NULL,
-                numeric_fps INT NOT NULL,
-                record_fps INT NOT NULL,
-                numeric_ms DOUBLE PRECISION NOT NULL,
-                record_ms DOUBLE PRECISION NOT NULL,
-                snapshot_ms DOUBLE PRECISION NOT NULL,
-                fault_count INT NOT NULL,
-                scored_at TIMESTAMPTZ NOT NULL
-            );
-            """);
+        await c.ExecuteAsync(Queries.EnsureResultsTableAsync);
     }
 }
