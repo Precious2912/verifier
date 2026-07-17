@@ -12,7 +12,6 @@ var eventConn = config.GetConnectionString("EventsDb")!;
 builder.Services.AddSingleton(new Reader(crudConn));
 builder.Services.AddSingleton(new CheckpointStore(eventConn));
 builder.Services.AddEventStore(eventConn);
-//builder.Services.AddSingleton<BackfillRunner>();
 
 var mode = args.FirstOrDefault(a => a.StartsWith("--mode="))?.Split('=')[1]
            ?? "backfill";

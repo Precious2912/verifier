@@ -9,6 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+var config = builder.Configuration;
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -21,8 +22,13 @@ var app = builder.Build();
 
 if (args.Contains("--seed"))
 {
-    var count = 80; // Number of rows to seed
-    var csvPath = "/Users/precious/Documents/MSc/Thesis/dataset/paysim_c2c_transfers.csv";
+    var count = config.GetValue<int?>("DataSetConfig:RecordCount")
+                  ?? throw new InvalidOperationException("RecordCount is missing!");
+    if (count <= 0)
+        throw new InvalidOperationException($"RecordCount must be positive, got {count}.");
+
+    var csvPath = config.GetValue<string>("DataSetConfig:CSVPath")
+                  ?? throw new InvalidOperationException("CSVPath is missing!");
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await PaySimSeeder.SeedAsync(db, csvPath, count);
