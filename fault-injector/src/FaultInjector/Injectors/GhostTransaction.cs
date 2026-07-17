@@ -17,22 +17,17 @@ public class GhostTransaction(string crudConnectionString, FaultLog log)
 
         if (reference is null)
         {
-            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type, string? Id, decimal Amount, string? Debit, string? Credit)>("""
-                SELECT "Reference" AS Reference, "Type" AS Type, "Id"::text AS Id,
-                       "Amount" AS Amount, "DebitAccount" AS Debit, "CreditAccount" AS Credit
-                FROM "Transactions" ORDER BY random() LIMIT 1;
-                """);
+            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type, string? Id, decimal Amount, string? Debit, string? Credit)>(
+                Queries.CrudQueries.GetRandomTransaction
+            );
             if (t.Reference is null) { Console.WriteLine("No transaction to edit."); return; }
             reference = t.Reference; type = t.Type; id = t.Id!;
             origAmount = t.Amount.ToString(); debit = t.Debit!; credit = t.Credit!;
         }
         else
         {
-            var t = await c.QuerySingleOrDefaultAsync<(string Id, decimal Amount, string Debit, string Credit)>("""
-                SELECT "Id"::text AS Id, "Amount" AS Amount,
-                       "DebitAccount" AS Debit, "CreditAccount" AS Credit
-                FROM "Transactions" WHERE "Reference" = @reference AND "Type" = @type LIMIT 1;
-                """, new { reference, type });
+            var t = await c.QuerySingleOrDefaultAsync<(string Id, decimal Amount, string Debit, string Credit)>(
+                Queries.CrudQueries.FindTransactionByReference, new { reference, type });
             if (t.Id is null) { Console.WriteLine($"No {type} txn for {reference}."); return; }
             id = t.Id; origAmount = t.Amount.ToString(); debit = t.Debit; credit = t.Credit;
         }
@@ -40,7 +35,7 @@ public class GhostTransaction(string crudConnectionString, FaultLog log)
         var affectedAccount = type == "Debit" ? debit : credit;
         var corrupted = newAmount ?? (decimal.Parse(origAmount) + 100m);
 
-        await c.ExecuteAsync("""UPDATE "Transactions" SET "Amount" = @amt WHERE "Id" = @id::uuid;""",
+        await c.ExecuteAsync(Queries.CrudQueries.UpdateTransactionAmount,
             new { id, amt = corrupted });
 
         await _log.RecordAsync(new InjectedFault(
@@ -55,7 +50,7 @@ public class GhostTransaction(string crudConnectionString, FaultLog log)
     {
         var txnId = fault.TargetDetail!.Split("txn ")[^1].Trim();
         await using var c = new NpgsqlConnection(_conn);
-        await c.ExecuteAsync("""UPDATE "Transactions" SET "Amount" = @amt WHERE "Id" = @id::uuid;""",
+        await c.ExecuteAsync(Queries.CrudQueries.UpdateTransactionAmount,
             new { id = txnId, amt = decimal.Parse(fault.OriginalValue!) });
         await _log.MarkRevertedAsync(fault.Id);
         Console.WriteLine($"REVERTED ghost-txn: restored {fault.OriginalValue}.");

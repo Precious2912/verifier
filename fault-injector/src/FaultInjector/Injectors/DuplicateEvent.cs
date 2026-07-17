@@ -15,37 +15,20 @@ public class DuplicateEvent(string eventsConnectionString, FaultLog log)
 
         if (reference is null)
         {
-            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type)>("""
-                SELECT data ->> 'Reference' AS Reference, type AS Type
-                FROM event_store.mt_events
-                WHERE type IN ('account_debited', 'account_credited')
-                ORDER BY random() LIMIT 1;
-                """);
+            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type)>(Queries.EventQueries.GetRandomTransactionEvent);
             if (t.Reference is null) { Console.WriteLine("No eligible event to duplicate."); return; }
             reference = t.Reference; eventType = t.Type;
         }
 
-        var row = await c.QuerySingleOrDefaultAsync<dynamic>("""
-            SELECT stream_id, version, data::text AS data, type, timestamp, tenant_id,
-                   mt_dotnet_type, is_archived
-            FROM event_store.mt_events
-            WHERE type = @eventType AND data ->> 'Reference' = @reference LIMIT 1;
-            """, new { reference, eventType });
+        var row = await c.QuerySingleOrDefaultAsync<dynamic>(Queries.EventQueries.GetEventForDuplication, new { reference, eventType });
         if (row is null) { Console.WriteLine($"No {eventType} event for {reference}."); return; }
 
         var newId = Guid.NewGuid();
-        var newSeq = await c.ExecuteScalarAsync<long>(
-            "SELECT COALESCE(MAX(seq_id),0)+1 FROM event_store.mt_events;");
-        var newVersion = await c.ExecuteScalarAsync<long>(
-            "SELECT COALESCE(MAX(version),0)+1 FROM event_store.mt_events WHERE stream_id=@s;",
+        var newSeq = await c.ExecuteScalarAsync<long>(Queries.EventQueries.GetNextSeqId);
+        var newVersion = await c.ExecuteScalarAsync<long>(Queries.EventQueries.GetNextVersionForStream,
             new { s = (string)row.stream_id });
 
-        await c.ExecuteAsync("""
-            INSERT INTO event_store.mt_events
-                (seq_id, id, stream_id, version, data, type, timestamp, tenant_id, mt_dotnet_type, is_archived)
-            VALUES (@SeqId, @Id, @StreamId, @Version, @Data::jsonb, @Type,
-                    @Timestamp, @TenantId, @DotNetType, @IsArchived);
-            """, new
+        await c.ExecuteAsync(Queries.EventQueries.InsertEvent, new
         {
             SeqId = newSeq,
             Id = newId,
@@ -70,7 +53,7 @@ public class DuplicateEvent(string eventsConnectionString, FaultLog log)
     public async Task RevertAsync(InjectedFault fault)
     {
         await using var c = new NpgsqlConnection(_conn);
-        await c.ExecuteAsync("DELETE FROM event_store.mt_events WHERE id = @id::uuid;",
+        await c.ExecuteAsync(Queries.EventQueries.DeleteEventById,
             new { id = fault.InjectedValue });
         await _log.MarkRevertedAsync(fault.Id);
         Console.WriteLine($"REVERTED duplicate: removed {fault.InjectedValue}.");

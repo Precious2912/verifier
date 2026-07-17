@@ -14,11 +14,10 @@ var amount = new IncorrectAmount(eventsConn, log);
 var ghostTxn = new GhostTransaction(crudConn, log);
 var ghostBal = new GhostBalance(crudConn, log);
 
-// ---- Configure per run ----
-const string mode = "revert";        // "inject" | "revert"
-const string evalMode = "isolated";  // "isolated" | "compound"
-const string fault = "ghostbal";         // for isolated: drop|duplicate|amount|ghosttxn|ghostbal
-// ---------------------------
+// Configure per run
+const string mode = "inject"; // "inject" | "revert"
+const string evalMode = "isolated"; // "isolated" | "compound"
+const string fault = "drop"; // for isolated: drop|duplicate|amount|ghosttxn|ghostbal
 
 if (mode == "revert")
 {

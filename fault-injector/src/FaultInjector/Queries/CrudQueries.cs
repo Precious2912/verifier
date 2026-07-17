@@ -2,13 +2,42 @@ namespace FaultInjector.Queries;
 
 public static class CrudQueries
 {
-    public const string FindEvent = """
-        SELECT seq_id AS SeqId, id::text AS EventId, stream_id AS StreamId,
-               version AS Version, data::text AS Data, type AS Type,
-               timestamp AS Timestamp, tenant_id AS TenantId,
-               mt_dotnet_type AS DotNetType, is_archived AS IsArchived
-        FROM event_store.mt_events
-        WHERE type = @eventType AND data ->> 'Reference' = @reference
+    // Ghost balance (Accounts)
+    public const string GetRandomAccount = """
+        SELECT "AccountNumber" FROM "Accounts"
+        ORDER BY random() LIMIT 1;
+        """;
+
+    public const string GetAccountBalance = """
+        SELECT "Balance" FROM "Accounts"
+        WHERE "AccountNumber" = @a;
+        """;
+
+    // Overwrite an account's balance — fault: ghostbalance, mode: inject (corrupt) and revert (restore).
+    public const string UpdateAccountBalance = """
+        UPDATE "Accounts" SET "Balance" = @b
+        WHERE "AccountNumber" = @a;
+        """;
+
+    // Ghost transaction
+    public const string GetRandomTransaction = """
+        SELECT "Reference" AS Reference, "Type" AS Type, "Id"::text AS Id,
+               "Amount" AS Amount, "DebitAccount" AS Debit, "CreditAccount" AS Credit
+        FROM "Transactions"
+        ORDER BY random() LIMIT 1;
+        """;
+
+    public const string FindTransactionByReference = """
+        SELECT "Id"::text AS Id, "Amount" AS Amount,
+               "DebitAccount" AS Debit, "CreditAccount" AS Credit
+        FROM "Transactions"
+        WHERE "Reference" = @reference AND "Type" = @type
         LIMIT 1;
+        """;
+
+    // Overwrite a transaction's amount — fault: ghosttransaction, mode: inject (corrupt) and revert (restore).
+    public const string UpdateTransactionAmount = """
+        UPDATE "Transactions" SET "Amount" = @amt
+        WHERE "Id" = @id::uuid;
         """;
 }

@@ -15,29 +15,15 @@ public class DroppedEvent(string eventsConnectionString, FaultLog log)
 
         if (reference is null)
         {
-            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type)>("""
-                SELECT data ->> 'Reference' AS Reference, type AS Type
-                FROM event_store.mt_events
-                WHERE type IN ('account_debited', 'account_credited')
-                ORDER BY random() LIMIT 1;
-                """);
+            var t = await c.QuerySingleOrDefaultAsync<(string? Reference, string? Type)>(Queries.EventQueries.GetRandomTransactionEvent);
             if (t.Reference is null) { Console.WriteLine("No eligible event to drop."); return; }
             reference = t.Reference; eventType = t.Type;
         }
 
-        const string find = """
-            SELECT seq_id AS SeqId, id::text AS EventId, stream_id AS StreamId,
-                   version AS Version, data::text AS Data, type AS Type,
-                   timestamp AS Timestamp, tenant_id AS TenantId,
-                   mt_dotnet_type AS DotNetType, is_archived AS IsArchived
-            FROM event_store.mt_events
-            WHERE type = @eventType AND data ->> 'Reference' = @reference
-            LIMIT 1;
-            """;
-        var row = await c.QuerySingleOrDefaultAsync<EventRow>(find, new { reference, eventType });
+        var row = await c.QuerySingleOrDefaultAsync<EventRow>(Queries.EventQueries.FindEventByReference, new { reference, eventType });
         if (row is null) { Console.WriteLine($"No {eventType} event for {reference}."); return; }
 
-        await c.ExecuteAsync("DELETE FROM event_store.mt_events WHERE id = @id::uuid;",
+        await c.ExecuteAsync(Queries.EventQueries.DeleteEventById,
             new { id = row.EventId });
 
         await _log.RecordAsync(new InjectedFault(
@@ -52,12 +38,7 @@ public class DroppedEvent(string eventsConnectionString, FaultLog log)
     {
         var row = System.Text.Json.JsonSerializer.Deserialize<EventRow>(fault.OriginalValue!)!;
         await using var c = new NpgsqlConnection(_conn);
-        await c.ExecuteAsync("""
-            INSERT INTO event_store.mt_events
-                (seq_id, id, stream_id, version, data, type, timestamp, tenant_id, mt_dotnet_type, is_archived)
-            VALUES (@SeqId, @EventId::uuid, @StreamId, @Version, @Data::jsonb, @Type,
-                    @Timestamp, @TenantId, @DotNetType, @IsArchived);
-            """, row);
+        await c.ExecuteAsync(Queries.EventQueries.InsertEvent, row);
         await _log.MarkRevertedAsync(fault.Id);
         Console.WriteLine($"REVERTED drop: restored {row.Type} for {row.StreamId}.");
     }
