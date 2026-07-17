@@ -11,7 +11,7 @@ public class EventReader(string connectionString)
     public async Task<IReadOnlyList<EventRecord>> GetEventsAsync()
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<EventRecord>(Queries.GetEventsAsync);
+        var rows = await conn.QueryAsync<EventRecord>(Queries.GetEvents);
         return [.. rows];
     }
 
@@ -21,7 +21,7 @@ public class EventReader(string connectionString)
         if (references.Count == 0) return [];
         await using var conn = new NpgsqlConnection(_connectionString);
         var rows = await conn.QueryAsync<EventRecord>(
-            Queries.GetEventsForReferencesAsync, new { references = references.ToArray() });
+            Queries.GetEventsForReferences, new { references = references.ToArray() });
         return [.. rows];
     }
 }

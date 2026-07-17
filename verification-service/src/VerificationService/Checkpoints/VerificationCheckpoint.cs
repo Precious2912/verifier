@@ -12,7 +12,7 @@ public class VerificationCheckpointStore(string connectionString)
     public async Task EnsureTableAsync()
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.ExecuteAsync(Queries.EnsureTableAsync);
+        await conn.ExecuteAsync(Queries.CreateVerificationCheckpointTable);
     }
 
     public async Task<VerificationCheckpoint?> GetAsync()

@@ -10,7 +10,9 @@ public static class Queries
             """;
 
         // Verification query
-        public const string EnsureTableAsync = """
+
+        // Schema creation for verification results
+        public const string CreateVerificationCheckpointTable = """
             CREATE SCHEMA IF NOT EXISTS event_store;
 
             CREATE TABLE IF NOT EXISTS event_store.verification_checkpoint (
@@ -34,18 +36,18 @@ public static class Queries
             """;
 
         // CRUD queries
-        public const string GetAccountsAsync = """
+        public const string GetAccounts = """
             SELECT "AccountNumber" AS AccountNumber, "Balance" AS StoredBalance
             FROM "Accounts";
             """;
 
-        public const string GetTransactionsAsync = """
+        public const string GetTransactions = """
             SELECT "Id" AS Id, "Reference" AS Reference, "Type" AS Type, "DebitAccount" AS DebitAccount, "CreditAccount" AS CreditAccount, 
             "Amount" AS Amount, "CreatedAt" AS CreatedAt
             FROM "Transactions";
             """;
 
-        public const string GetTransactionsInSliceAsync = """
+        public const string GetTransactionsInSlice = """
         SELECT "Reference" AS Reference, "Type" AS Type,
                "DebitAccount" AS DebitAccount, "CreditAccount" AS CreditAccount,
                "Amount" AS Amount, "CreatedAt" AS CreatedAt, "Id" AS Id
@@ -56,7 +58,7 @@ public static class Queries
         """;
 
         // Event queries
-        public const string GetEventsAsync = """
+        public const string GetEvents = """
             SELECT stream_id AS StreamId, type AS Type,
                    data ->> 'Reference' AS Reference,
                    data ->> 'DebitAccount' AS DebitAccount,
@@ -67,7 +69,7 @@ public static class Queries
             ORDER BY seq_id;
             """;
 
-        public const string GetEventsForReferencesAsync = """
+        public const string GetEventsForReferences = """
         SELECT stream_id AS StreamId, type AS Type,
                data ->> 'Reference' AS Reference,
                data ->> 'DebitAccount' AS DebitAccount,
@@ -81,7 +83,7 @@ public static class Queries
         """;
 
         // Detection result queries
-        public const string InsertResultsAsync = """
+        public const string InsertResults = """
                 INSERT INTO evaluation.detection_results
                     (id, fault_type, target_ref, target_account,
                      numeric_caught, record_caught, snapshot_caught,
@@ -95,14 +97,15 @@ public static class Queries
                      @FaultCount, @At);
                 """;
 
-        public const string GetFaultsAsync = """
+        public const string GetFaults = """
             SELECT fault_type AS FaultType, target_ref AS TargetRef, target_account AS TargetAccount
             FROM evaluation.injected_faults
             WHERE reverted = FALSE
             ORDER BY injected_at;
             """;
 
-        public const string EnsureResultsTableAsync = """
+        // Schema creation for evaluation results
+        public const string CreateDetectionResultsTable = """
             CREATE TABLE IF NOT EXISTS evaluation.detection_results (
                 id UUID PRIMARY KEY,
                 fault_type TEXT NOT NULL,

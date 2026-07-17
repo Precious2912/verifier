@@ -11,14 +11,14 @@ public class CrudReader(string connectionString)
     public async Task<IReadOnlyList<CrudAccount>> GetAccountsAsync()
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<CrudAccount>(Queries.GetAccountsAsync);
+        var rows = await conn.QueryAsync<CrudAccount>(Queries.GetAccounts);
         return [.. rows];
     }
 
     public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsAsync()
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactionsAsync);
+        var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactions);
         return [.. rows];
     }
 
@@ -27,7 +27,7 @@ public class CrudReader(string connectionString)
     DateTime toCreatedAt, Guid toId)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactionsInSliceAsync, new { fromCreatedAt, fromId, toCreatedAt, toId });
+        var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactionsInSlice, new { fromCreatedAt, fromId, toCreatedAt, toId });
         return [.. rows];
     }
 }

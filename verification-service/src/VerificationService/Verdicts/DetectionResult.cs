@@ -29,7 +29,7 @@ public class DetectionScorer(string eventsConnectionString)
         await using var c = new NpgsqlConnection(_conn);
 
         // Read ALL active (unreverted) faults — one for isolated, several for compound.
-        var faults = (await c.QueryAsync<(string FaultType, string? TargetRef, string? TargetAccount)>(Queries.GetFaultsAsync)).ToList();
+        var faults = (await c.QueryAsync<(string FaultType, string? TargetRef, string? TargetAccount)>(Queries.GetFaults)).ToList();
 
         if (faults.Count == 0)
         {
@@ -82,7 +82,7 @@ public class DetectionScorer(string eventsConnectionString)
         await EnsureResultsTableAsync(c);
         foreach (var d in detections)
         {
-            await c.ExecuteAsync(Queries.InsertResultsAsync, new
+            await c.ExecuteAsync(Queries.InsertResults, new
             {
                 Id = Guid.NewGuid(),
                 d.FaultType,
@@ -106,6 +106,6 @@ public class DetectionScorer(string eventsConnectionString)
 
     private static async Task EnsureResultsTableAsync(NpgsqlConnection c)
     {
-        await c.ExecuteAsync(Queries.EnsureResultsTableAsync);
+        await c.ExecuteAsync(Queries.CreateDetectionResultsTable);
     }
 }
