@@ -31,6 +31,10 @@ public class NumericInvariant
 
     private static VerdictStatus Classify(decimal stored, decimal crud, decimal evt)
     {
+        // Added 
+        if (stored != crud && crud != evt)
+            return VerdictStatus.SourceIntegrityViolation;
+
         // Migration fault takes precedence: the two stores disagree.
         if (crud != evt)
             return VerdictStatus.MigrationFault;
