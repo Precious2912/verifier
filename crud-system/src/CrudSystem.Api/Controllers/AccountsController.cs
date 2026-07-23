@@ -18,7 +18,7 @@ public class AccountsController(IAccountService service) : ControllerBase
         return Ok(ApiResponse<AccountResponse>.Success("Account created.", account));
     }
 
-    [HttpGet]
+    [HttpGet("{accountNumber}")]
     public async Task<IActionResult> GetAccount(string accountNumber, CancellationToken ct)
     {
         var account = await _service.GetAccountByAccountNumberAsync(accountNumber, ct);

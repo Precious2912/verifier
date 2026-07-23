@@ -6,9 +6,9 @@ namespace CrudSystem.Api.Controllers;
 
 [ApiController]
 [Route("api/transactions")]
-public class TransactionsController(IAccountService service) : ControllerBase
+public class TransactionsController(ITransactionService service) : ControllerBase
 {
-    private readonly IAccountService _service = service;
+    private readonly ITransactionService _service = service;
 
     [HttpPost]
     public async Task<IActionResult> Post(

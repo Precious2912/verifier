@@ -9,7 +9,7 @@ public class GhostTransaction(string crudConnectionString, FaultLog log)
     private readonly string _conn = crudConnectionString;
     private readonly FaultLog _log = log;
 
-    public async Task InjectAsync(string? reference = null, string? type = null, decimal? newAmount = null)
+    public async Task InjectAsync(string? reference = null, string? type = null, decimal? newAmount = null, string scenario = "single_ghosttxn")
     {
         await using var c = new NpgsqlConnection(_conn);
 
@@ -38,8 +38,15 @@ public class GhostTransaction(string crudConnectionString, FaultLog log)
         await c.ExecuteAsync(Queries.CrudQueries.UpdateTransactionAmount,
             new { id, amt = corrupted });
 
+        // Allow overriding the scenario via environment variable for testing batch faults
+        var envScenario = Environment.GetEnvironmentVariable("SCENARIO");
+        if (!string.IsNullOrEmpty(envScenario))
+        {
+            scenario = envScenario;
+        }
+
         await _log.RecordAsync(new InjectedFault(
-            Guid.NewGuid(), "GhostTransaction", "SourceIntegrity",
+            Guid.NewGuid(), "GhostTransaction", "SourceIntegrity", scenario,
             reference, affectedAccount, $"{type} txn {id}",
             origAmount, corrupted.ToString(), DateTime.UtcNow, false));
 

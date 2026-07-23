@@ -1,15 +1,15 @@
+using CrudSystem.Api;
 using CrudSystem.Api.Middleware;
-using CrudSystem.Api.Seeder;
+using CrudSystem.Api.SeedData;
+using CrudSystem.Api.Simulation;
 using CrudSystem.Application;
 using CrudSystem.Infrastructure;
-using CrudSystem.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-var config = builder.Configuration;
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -20,18 +20,18 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
-if (args.Contains("--seed"))
+// Seed database from CSV if --seed is passed
+if (Args.Has(args, "--seed"))
 {
-    var count = config.GetValue<int?>("DataSetConfig:RecordCount")
-                  ?? throw new InvalidOperationException("RecordCount is missing!");
-    if (count <= 0)
-        throw new InvalidOperationException($"RecordCount must be positive, got {count}.");
+    await Seeder.RunAsync(app.Services, builder.Configuration, app.Environment.ContentRootPath);
+    return;
+}
 
-    var csvPath = config.GetValue<string>("DataSetConfig:CSVPath")
-                  ?? throw new InvalidOperationException("CSVPath is missing!");
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await PaySimSeeder.SeedAsync(db, csvPath, count);
+//Concurrent requests to POST /api/transactions
+if (Args.Has(args, "--simulate-activity"))
+{
+    var intervalMs = Args.GetInt(args, "--interval", 1000);
+    await TransactionSimulator.RunAsync(app.Services, intervalMs);
     return;
 }
 

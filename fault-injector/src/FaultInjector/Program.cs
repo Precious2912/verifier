@@ -1,3 +1,4 @@
+using FaultInjector;
 using FaultInjector.GroundTruth;
 using FaultInjector.Injectors;
 
@@ -13,17 +14,18 @@ var duplicate = new DuplicateEvent(eventsConn, log);
 var amount = new IncorrectAmount(eventsConn, log);
 var ghostTxn = new GhostTransaction(crudConn, log);
 var ghostBal = new GhostBalance(crudConn, log);
+var offsetting = new OffsettingFault(eventsConn, amount, log);
+var combinedDropDuplicate = new CombinedDropDuplicate(eventsConn, drop, duplicate);
 
-// Configure per run
-const string mode = "inject"; // "inject" | "revert"
-const string evalMode = "isolated"; // "isolated" | "compound"
-const string fault = "drop"; // for isolated: drop|duplicate|amount|ghosttxn|ghostbal
+var mode = Args.GetValue(args, "--mode", "inject"); // inject | revert
+var fault = Args.GetValue(args, "--fault", "drop"); // drop|duplicate|amount|ghosttxn|ghostbal|offsetting_amounts|combined_drop_duplicate
+var scenario = Args.GetValue(args, "--scenario"); // optional override. Null unless batch run (e.g. batch_5);
 
 if (mode == "revert")
 {
-    // Revert ALL active faults (works for isolated single and compound).
     var active = await log.GetAllActiveAsync();
     if (active.Count == 0) { Console.WriteLine("No active faults."); return; }
+
     foreach (var f in active)
     {
         switch (f.FaultType)
@@ -33,30 +35,29 @@ if (mode == "revert")
             case "IncorrectAmount": await amount.RevertAsync(f); break;
             case "GhostTransaction": await ghostTxn.RevertAsync(f); break;
             case "GhostBalance": await ghostBal.RevertAsync(f); break;
+            default: Console.WriteLine($"Unknown fault type '{f.FaultType}' — skipped."); break;
         }
     }
+    Console.WriteLine($"Reverted {active.Count} fault(s).");
     return;
 }
 
-// mode == "inject"
-if (evalMode == "isolated")
+if (mode != "inject")
 {
-    switch (fault)
-    {
-        case "drop": await drop.InjectAsync(); break;
-        case "duplicate": await duplicate.InjectAsync(); break;
-        case "amount": await amount.InjectAsync(); break;
-        case "ghosttxn": await ghostTxn.InjectAsync(); break;
-        case "ghostbal": await ghostBal.InjectAsync(); break;
-    }
+    Console.WriteLine($"Unknown mode '{mode}'. Use --mode inject|revert.");
+    return;
 }
-else if (evalMode == "compound")
+
+switch (fault)
 {
-    // One of each, random targets — tests masking/interaction.
-    await drop.InjectAsync();
-    await duplicate.InjectAsync();
-    await amount.InjectAsync();
-    await ghostTxn.InjectAsync();
-    await ghostBal.InjectAsync();
-    Console.WriteLine("Compound: all five faults injected.");
+    case "drop": await drop.InjectAsync(scenario: scenario!); break;
+    case "duplicate": await duplicate.InjectAsync(scenario: scenario!); break;
+    case "amount": await amount.InjectAsync(scenario: scenario!); break;
+    case "ghosttxn": await ghostTxn.InjectAsync(scenario: scenario!); break;
+    case "ghostbal": await ghostBal.InjectAsync(scenario: scenario!); break;
+    case "offsetting_amounts": await offsetting.InjectOffsettingAmountsAsync(); break;
+    case "combined_drop_duplicate": await combinedDropDuplicate.InjectCombinedDropDuplicateAsync(); break;
+    default:
+        Console.WriteLine($"Unknown fault '{fault}'. Valid: drop, duplicate, amount, ghosttxn, ghostbal, offsetting_amounts, combined_drop_duplicate.");
+        break;
 }

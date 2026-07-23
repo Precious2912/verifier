@@ -9,7 +9,7 @@ public class IncorrectAmount(string eventsConnectionString, FaultLog log)
     private readonly string _conn = eventsConnectionString;
     private readonly FaultLog _log = log;
 
-    public async Task InjectAsync(string? reference = null, string? eventType = null, decimal? newAmount = null)
+    public async Task InjectAsync(string? reference = null, string? eventType = null, decimal? newAmount = null, string scenario = "single_amount")
     {
         await using var c = new NpgsqlConnection(_conn);
 
@@ -35,8 +35,15 @@ public class IncorrectAmount(string eventsConnectionString, FaultLog log)
 
         await c.ExecuteAsync(Queries.EventQueries.UpdateEventAmount, new { id = eventId, amt = corrupted });
 
+        // Allow overriding the scenario via environment variable for testing batch faults
+        var envScenario = Environment.GetEnvironmentVariable("SCENARIO");
+        if (!string.IsNullOrEmpty(envScenario))
+        {
+            scenario = envScenario;
+        }
+
         await _log.RecordAsync(new InjectedFault(
-            Guid.NewGuid(), "IncorrectAmount", "MigrationFault",
+            Guid.NewGuid(), "IncorrectAmount", "MigrationFault", scenario,
             reference, streamId, $"{eventType} in stream {streamId}, event {eventId}",
             origAmount, corrupted.ToString(), DateTime.UtcNow, false));
 

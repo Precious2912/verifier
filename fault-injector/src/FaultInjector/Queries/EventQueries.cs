@@ -20,13 +20,13 @@ public static class EventQueries
     public const string InsertEvent = """
         INSERT INTO event_store.mt_events
             (seq_id, id, stream_id, version, data, type, timestamp, tenant_id, mt_dotnet_type, is_archived)
-        VALUES (@SeqId, @Id, @StreamId, @Version, @Data::jsonb, @Type,
+        VALUES (@SeqId, @Id::uuid, @StreamId, @Version, @Data::jsonb, @Type,
                 @Timestamp, @TenantId, @DotNetType, @IsArchived);
         """;
 
     // Dropped event
     public const string FindEventByReference = """
-        SELECT seq_id AS SeqId, id::text AS EventId, stream_id AS StreamId,
+        SELECT seq_id AS SeqId, id::text AS Id, stream_id AS StreamId,
                version AS Version, data::text AS Data, type AS Type,
                timestamp AS Timestamp, tenant_id AS TenantId,
                mt_dotnet_type AS DotNetType, is_archived AS IsArchived
@@ -37,8 +37,9 @@ public static class EventQueries
 
     // Duplicate event
     public const string GetEventForDuplication = """
-        SELECT stream_id, version, data::text AS data, type, timestamp, tenant_id,
-               mt_dotnet_type, is_archived
+        SELECT stream_id AS StreamId, version AS Version, data::text AS Data,
+            type AS Type, timestamp AS Timestamp, tenant_id AS TenantId,
+            mt_dotnet_type AS DotNetType, is_archived AS IsArchived
         FROM event_store.mt_events
         WHERE type = @eventType AND data ->> 'Reference' = @reference
         LIMIT 1;
@@ -69,4 +70,40 @@ public static class EventQueries
         SET data = jsonb_set(data, '{Amount}', to_jsonb(@amt::numeric))
         WHERE id = @id::uuid;
         """;
+
+    // Offsetting Faults
+
+    // Find an account (stream) that has at least 2 transaction events. Suitable for injecting an offsetting pair.
+    public const string GetAccountWithMultipleEvents = """
+        SELECT stream_id
+        FROM event_store.mt_events
+        WHERE type IN ('account_debited', 'account_credited')
+        GROUP BY stream_id
+        HAVING COUNT(*) >= 2
+        ORDER BY random()
+        LIMIT 1;
+        """;
+
+    // Get two events from a given account's stream (for the offsetting pair).
+    public const string GetTwoEventsForStream = """
+        SELECT id::text AS EventId, data ->> 'Reference' AS Reference,
+            type AS Type, (data ->> 'Amount')::numeric AS Amount
+        FROM event_store.mt_events
+        WHERE stream_id = @streamId
+        AND type IN ('account_debited', 'account_credited')
+        ORDER BY seq_id
+        LIMIT 2;
+        """;
+
+    // For combined drop and duplicate scenarios.
+    public const string GetTwoDifferentTransactionEvents = """
+    SELECT
+        data ->> 'Reference' AS Reference,
+        type AS Type
+    FROM event_store.mt_events
+    WHERE type IN ('account_debited', 'account_credited')
+      AND data ->> 'Reference' IS NOT NULL
+    ORDER BY random()
+    LIMIT 2;
+    """;
 }

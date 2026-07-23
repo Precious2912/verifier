@@ -37,7 +37,7 @@ builder.Services.AddSingleton<RecordLevelInvariant>();
 builder.Services.AddSingleton<SnapshotInvariant>();
 
 //Scorer
-builder.Services.AddSingleton(new DetectionScorer(eventConn));
+builder.Services.AddSingleton(new DetectionScorer(eventConn, crudConn));
 
 //Worker
 builder.Services.AddHostedService<Worker>();

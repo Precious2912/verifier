@@ -2,13 +2,14 @@ namespace FaultInjector.Queries;
 
 public static class GroundTruthQueries
 {
-    // Schema creation for injected faults
-    public const string CreateInjectedFaultsTable = """
+        // Schema creation for injected faults
+        public const string CreateInjectedFaultsTable = """
             CREATE SCHEMA IF NOT EXISTS evaluation;
             CREATE TABLE IF NOT EXISTS evaluation.injected_faults (
                 id UUID PRIMARY KEY,
                 fault_type TEXT NOT NULL,
                 tier TEXT NOT NULL,
+                scenario TEXT NOT NULL,
                 target_ref TEXT,
                 target_account TEXT,
                 target_detail TEXT,
@@ -19,17 +20,17 @@ public static class GroundTruthQueries
             );
             """;
 
-    public const string InsertInjectedFault = """
+        public const string InsertInjectedFault = """
             INSERT INTO evaluation.injected_faults
-                (id, fault_type, tier, target_ref, target_account, target_detail,
+                (id, fault_type, tier, scenario, target_ref, target_account, target_detail,
                  original_value, injected_value, injected_at, reverted)
             VALUES
-                (@Id, @FaultType, @Tier, @TargetRef, @TargetAccount, @TargetDetail,
+                (@Id, @FaultType, @Tier, @Scenario, @TargetRef, @TargetAccount, @TargetDetail,
                  @OriginalValue, @InjectedValue, @InjectedAt, @Reverted);
             """;
 
-    public const string GetActiveInjectedFault = """
-            SELECT id AS Id, fault_type AS FaultType, tier AS Tier,
+        public const string GetActiveInjectedFault = """
+            SELECT id AS Id, fault_type AS FaultType, tier AS Tier, scenario AS Scenario,
                    target_ref AS TargetRef, target_account AS TargetAccount,
                    target_detail AS TargetDetail,
                    original_value AS OriginalValue, injected_value AS InjectedValue,
@@ -39,8 +40,8 @@ public static class GroundTruthQueries
             ORDER BY injected_at DESC LIMIT 1;
             """;
 
-    public const string GetAllActiveInjectedFaults = """
-            SELECT id AS Id, fault_type AS FaultType, tier AS Tier,
+        public const string GetAllActiveInjectedFaults = """
+            SELECT id AS Id, fault_type AS FaultType, tier AS Tier, scenario AS Scenario,
                    target_ref AS TargetRef, target_account AS TargetAccount,
                    target_detail AS TargetDetail,
                    original_value AS OriginalValue, injected_value AS InjectedValue,
@@ -50,7 +51,7 @@ public static class GroundTruthQueries
             ORDER BY injected_at;
             """;
 
-    public const string MarkRevertedInjectedFault = """UPDATE evaluation.injected_faults SET reverted = TRUE WHERE id = @id""";
+        public const string MarkRevertedInjectedFault = """UPDATE evaluation.injected_faults SET reverted = TRUE WHERE id = @id""";
 
 
 }

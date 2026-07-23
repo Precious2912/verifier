@@ -18,43 +18,76 @@ public class Worker(
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        var result = await RunPassAsync(ct);
+        var loopMode = Environment.GetEnvironmentVariable("VERIFY_MODE") == "loop";
+        var intervalMs = int.TryParse(Environment.GetEnvironmentVariable("VERIFY_INTERVAL_MS"), out var i)
+            ? i : 3000;
 
-        // --- Numeric ---
-        var numericFlagged = result.Numeric.Where(v => v.Status != VerdictStatus.Consistent).ToList();
+        if (loopMode)
+            logger.LogInformation("Verification running in LOOP mode (every {Interval}ms). Ctrl+C to stop.", intervalMs);
+
+        do
+        {
+            try
+            {
+                var result = await RunPassAsync(ct);
+                await LogAndScoreAsync(result);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Verification pass failed");
+                if (!loopMode) throw;   // one-off: surface it; loop: log and keep going
+            }
+
+            if (!loopMode) break;
+
+            logger.LogInformation("--- next pass in {Interval}ms ---", intervalMs);
+            try { await Task.Delay(intervalMs, ct); }
+            catch (TaskCanceledException) { break; }
+        }
+        while (!ct.IsCancellationRequested);
+
+        if (!loopMode)
+            lifetime.StopApplication();
+    }
+
+    private async Task LogAndScoreAsync(VerificationResult result)
+    {
+        var numeric = result.Numeric;
+        var record = result.Record;
+        var snapshot = result.Snapshot;
+
+        var numericFlagged = numeric.Verdicts.Where(v => v.Status != VerdictStatus.Consistent).ToList();
         foreach (var v in numericFlagged)
             logger.LogWarning("Numeric flagged {Account}: stored={Stored}, crud={Crud}, event={Event} -> {Status}",
                 v.AccountNumber, v.StoredBalance, v.CrudDerivedBalance, v.EventDerivedBalance, v.Status);
         logger.LogInformation("Numeric: {Consistent}/{Total} consistent",
-            result.Numeric.Count - numericFlagged.Count, result.Numeric.Count);
+            numeric.Verdicts.Count - numericFlagged.Count, numeric.Verdicts.Count);
 
-        // --- Record-level ---
-        var recordAnomalies = result.RecordLevel.Where(v => v.Status != RecordStatus.Matched).ToList();
+        var recordAnomalies = record.Verdicts.Where(v => v.Status != RecordStatus.Matched).ToList();
         foreach (var v in recordAnomalies)
             logger.LogWarning("Record flagged {Reference} [{Type}/{Account}]: crud={Crud}, event={Event} -> {Status}",
                 v.Reference, v.Type, v.Account, v.CrudAmount, v.EventAmount, v.Status);
         logger.LogInformation("Record-level: {Matched}/{Total} matched",
-            result.RecordLevel.Count(v => v.Status == RecordStatus.Matched), result.RecordLevel.Count);
+            record.Verdicts.Count(v => v.Status == RecordStatus.Matched), record.Verdicts.Count);
 
-        // --- Snapshot ---
-        if (result.Snapshot is not null)
+        if (snapshot.Verdict is not null)
         {
-            if (result.Snapshot.Status is SnapshotStatus.CountMismatch or SnapshotStatus.SumMismatch)
+            var s = snapshot.Verdict;
+            if (s.Status is SnapshotStatus.CountMismatch or SnapshotStatus.SumMismatch)
                 logger.LogWarning("Snapshot slice: crud={CrudCount}/{CrudSum}, event={EventCount}/{EventSum} -> {Status}",
-                    result.Snapshot.CrudCount, result.Snapshot.CrudGrossSum,
-                    result.Snapshot.EventCount, result.Snapshot.EventGrossSum, result.Snapshot.Status);
+                    s.CrudCount, s.CrudGrossSum, s.EventCount, s.EventGrossSum, s.Status);
             else
                 logger.LogInformation("Snapshot slice: crud={CrudCount}/{CrudSum}, event={EventCount}/{EventSum} -> {Status}",
-                    result.Snapshot.CrudCount, result.Snapshot.CrudGrossSum,
-                    result.Snapshot.EventCount, result.Snapshot.EventGrossSum, result.Snapshot.Status);
+                    s.CrudCount, s.CrudGrossSum, s.EventCount, s.EventGrossSum, s.Status);
         }
 
-        // --- Timing ---
-        logger.LogInformation("Pass timing — numeric={N:F1}ms record={R:F1}ms snapshot={S:F1}ms total={T:F1}ms",
-            result.NumericDuration.TotalMilliseconds, result.RecordDuration.TotalMilliseconds,
-            result.SnapshotDuration.TotalMilliseconds, result.Duration.TotalMilliseconds);
+        logger.LogInformation("Numeric  — load={L:F1}ms compute={C:F1}ms",
+            numeric.LoadTime.TotalMilliseconds, numeric.ComputeTime.TotalMilliseconds);
+        logger.LogInformation("Record   — load={L:F1}ms compute={C:F1}ms",
+            record.LoadTime.TotalMilliseconds, record.ComputeTime.TotalMilliseconds);
+        logger.LogInformation("Snapshot — load={L:F1}ms compute={C:F1}ms",
+            snapshot.LoadTime.TotalMilliseconds, snapshot.ComputeTime.TotalMilliseconds);
 
-        // --- Scoring ---
         var summary = await scorer.ScoreAsync(result);
         if (summary is not null)
         {
@@ -68,55 +101,73 @@ public class Worker(
         {
             logger.LogInformation("No active faults — nothing to score");
         }
-
-        lifetime.StopApplication();
     }
 
     public async Task<VerificationResult> RunPassAsync(CancellationToken ct)
     {
-        var totalSw = Stopwatch.StartNew();
-
         await verificationCheckpoint.EnsureTableAsync();
+        var migrationCp = await migrationCheckpoint.GetAsync();
 
+        var numeric = await RunNumericAsync();
+        var record = await RunRecordAsync(migrationCp);
+        var snapshot = await RunSnapshotAsync(migrationCp);
+
+        return new VerificationResult(numeric, record, snapshot);
+    }
+
+    private async Task<NumericResult> RunNumericAsync()
+    {
+        var loadSw = Stopwatch.StartNew();
         var accounts = await crud.GetAccountsAsync();
         var transactions = await crud.GetTransactionsAsync();
         var eventRows = await events.GetEventsAsync();
-        var migrationCp = await migrationCheckpoint.GetAsync();
+        loadSw.Stop();
 
-        var numericSw = Stopwatch.StartNew();
-        var numericVerdicts = NumericInvariant.Check(accounts, transactions, eventRows);
-        numericSw.Stop();
+        var computeSw = Stopwatch.StartNew();
+        var verdicts = NumericInvariant.Check(accounts, transactions, eventRows);
+        computeSw.Stop();
 
-        var recordSw = Stopwatch.StartNew();
-        var recordVerdicts = RecordLevelInvariant.Check(transactions, eventRows, migrationCp);
-        recordSw.Stop();
+        return new NumericResult(verdicts, loadSw.Elapsed, computeSw.Elapsed);
+    }
 
-        var snapshotSw = Stopwatch.StartNew();
-        SnapshotVerdict? snapshotVerdict = null;
-        if (migrationCp is not null)
-        {
-            var verificationCp = await verificationCheckpoint.GetAsync();
-            var from = verificationCp?.LastCreatedAt ?? DateTime.MinValue.ToUniversalTime();
-            var fromId = verificationCp?.LastId ?? Guid.Empty;
+    private async Task<RecordResult> RunRecordAsync(MigrationCheckpoint? migrationCp)
+    {
+        var loadSw = Stopwatch.StartNew();
+        var transactions = await crud.GetTransactionsAsync();
+        var eventRows = await events.GetEventsAsync();
+        loadSw.Stop();
 
-            var sliceTx = await crud.GetTransactionsInSliceAsync(
-                from, fromId, migrationCp.LastCreatedAt, migrationCp.LastId);
-            var refs = sliceTx.Select(t => t.Reference).Distinct().ToList();
-            var sliceEvents = await events.GetEventsForReferencesAsync(refs);
+        var computeSw = Stopwatch.StartNew();
+        var verdicts = RecordLevelInvariant.Check(transactions, eventRows, migrationCp);
+        computeSw.Stop();
 
-            snapshotVerdict = SnapshotInvariant.Check(from, migrationCp.LastCreatedAt, sliceTx, sliceEvents);
+        return new RecordResult(verdicts, loadSw.Elapsed, computeSw.Elapsed);
+    }
 
-            if (snapshotVerdict.Status != SnapshotStatus.EmptySlice)
-                await verificationCheckpoint.SetAsync(
-                    new VerificationCheckpoint(migrationCp.LastCreatedAt, migrationCp.LastId));
-        }
-        snapshotSw.Stop();
+    private async Task<SnapshotResult> RunSnapshotAsync(MigrationCheckpoint? migrationCp)
+    {
+        if (migrationCp is null)
+            return new SnapshotResult(null, TimeSpan.Zero, TimeSpan.Zero);
 
-        totalSw.Stop();
+        var loadSw = Stopwatch.StartNew();
+        var verificationCp = await verificationCheckpoint.GetAsync();
+        var from = verificationCp?.LastCreatedAt ?? DateTime.MinValue.ToUniversalTime();
+        var fromId = verificationCp?.LastId ?? Guid.Empty;
 
-        return new VerificationResult(
-            numericVerdicts, recordVerdicts, snapshotVerdict,
-            totalSw.Elapsed,
-            numericSw.Elapsed, recordSw.Elapsed, snapshotSw.Elapsed);
+        var sliceTx = await crud.GetTransactionsInSliceAsync(
+            from, fromId, migrationCp.LastCreatedAt, migrationCp.LastId);
+        var refs = sliceTx.Select(t => t.Reference).Distinct().ToList();
+        var sliceEvents = await events.GetEventsForReferencesAsync(refs);
+        loadSw.Stop();
+
+        var computeSw = Stopwatch.StartNew();
+        var verdict = SnapshotInvariant.Check(from, migrationCp.LastCreatedAt, sliceTx, sliceEvents);
+        computeSw.Stop();
+
+        if (verdict.Status != SnapshotStatus.EmptySlice)
+            await verificationCheckpoint.SetAsync(
+                new VerificationCheckpoint(migrationCp.LastCreatedAt, migrationCp.LastId));
+
+        return new SnapshotResult(verdict, loadSw.Elapsed, computeSw.Elapsed);
     }
 }

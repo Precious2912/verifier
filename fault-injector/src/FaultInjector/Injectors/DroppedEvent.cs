@@ -9,7 +9,7 @@ public class DroppedEvent(string eventsConnectionString, FaultLog log)
     private readonly string _conn = eventsConnectionString;
     private readonly FaultLog _log = log;
 
-    public async Task InjectAsync(string? reference = null, string? eventType = null)
+    public async Task InjectAsync(string? reference = null, string? eventType = null, string? scenario = null)
     {
         await using var c = new NpgsqlConnection(_conn);
 
@@ -24,10 +24,10 @@ public class DroppedEvent(string eventsConnectionString, FaultLog log)
         if (row is null) { Console.WriteLine($"No {eventType} event for {reference}."); return; }
 
         await c.ExecuteAsync(Queries.EventQueries.DeleteEventById,
-            new { id = row.EventId });
+            new { id = row.Id });
 
         await _log.RecordAsync(new InjectedFault(
-            Guid.NewGuid(), "DroppedEvent", "MigrationFault",
+            Guid.NewGuid(), "DroppedEvent", "MigrationFault", scenario ?? "single_drop",
             reference, row.StreamId, $"{eventType} in stream {row.StreamId} (seq {row.SeqId})",
             System.Text.Json.JsonSerializer.Serialize(row), null, DateTime.UtcNow, false));
 
@@ -46,7 +46,7 @@ public class DroppedEvent(string eventsConnectionString, FaultLog log)
     public class EventRow
     {
         public long SeqId { get; set; }
-        public string EventId { get; set; } = "";
+        public string Id { get; set; } = ""; //EventId
         public string? StreamId { get; set; }
         public long Version { get; set; }
         public string Data { get; set; } = "";

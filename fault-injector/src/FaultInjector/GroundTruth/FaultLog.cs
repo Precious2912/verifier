@@ -5,7 +5,7 @@ using Npgsql;
 namespace FaultInjector.GroundTruth;
 
 public record InjectedFault(
-    Guid Id, string FaultType, string Tier,
+    Guid Id, string FaultType, string Tier, string Scenario,
     string? TargetRef, string? TargetAccount, string? TargetDetail,
     string? OriginalValue, string? InjectedValue,
     DateTime InjectedAt, bool Reverted);

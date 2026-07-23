@@ -1,3 +1,4 @@
+using System.Security.Authentication.ExtendedProtection;
 using Dapper;
 using FaultInjector.GroundTruth;
 using Npgsql;
@@ -9,7 +10,7 @@ public class GhostBalance(string crudConnectionString, FaultLog log)
     private readonly string _conn = crudConnectionString;
     private readonly FaultLog _log = log;
 
-    public async Task InjectAsync(string? accountNumber = null, decimal? newBalance = null)
+    public async Task InjectAsync(string? accountNumber = null, decimal? newBalance = null, string scenario = "single_ghostbal")
     {
         await using var c = new NpgsqlConnection(_conn);
 
@@ -26,8 +27,15 @@ public class GhostBalance(string crudConnectionString, FaultLog log)
         await c.ExecuteAsync(Queries.CrudQueries.UpdateAccountBalance,
             new { a = accountNumber, b = corrupted });
 
+        // Allow overriding the scenario via environment variable for testing batch faults
+        var envScenario = Environment.GetEnvironmentVariable("SCENARIO");
+        if (!string.IsNullOrEmpty(envScenario))
+        {
+            scenario = envScenario;
+        }
+
         await _log.RecordAsync(new InjectedFault(
-            Guid.NewGuid(), "GhostBalance", "SourceIntegrity",
+            Guid.NewGuid(), "GhostBalance", "SourceIntegrity", scenario,
             accountNumber, accountNumber, $"account {accountNumber}",
             current.ToString(), corrupted.ToString(), DateTime.UtcNow, false));
 
