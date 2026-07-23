@@ -27,6 +27,6 @@ public static class EventMapper
         };
     }
 
-    public static (string StreamKey, object Event) MapAccount(CrudAccount a) =>
-        (a.AccountNumber, new AccountCreated(a.AccountNumber, a.AccountName, a.CreatedAt));
+    // public static (string StreamKey, object Event) MapAccount(CrudAccount a) =>
+    //     (a.AccountNumber, new AccountCreated(a.AccountNumber, a.AccountName, a.CreatedAt));
 }

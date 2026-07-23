@@ -18,7 +18,6 @@ public static class Queries
     // Polling
     public const string EnsureTableExists = """
         CREATE SCHEMA IF NOT EXISTS event_store;
-
         CREATE TABLE IF NOT EXISTS event_store.migration_checkpoint (
             id INT PRIMARY KEY,
             last_created_at TIMESTAMPTZ NOT NULL,

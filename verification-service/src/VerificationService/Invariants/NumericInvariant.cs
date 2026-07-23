@@ -8,7 +8,8 @@ public class NumericInvariant
     public static IReadOnlyList<NumericVerdict> Check(
         IReadOnlyList<CrudAccount> accounts,
         IReadOnlyList<CrudTransaction> transactions,
-        IReadOnlyList<EventRecord> events)
+        IReadOnlyList<EventRecord> events
+        )
     {
         var crudDerived = BalanceAggregator.FoldCrud(transactions);
         var eventDerived = BalanceAggregator.FoldEvents(events);
@@ -22,8 +23,7 @@ public class NumericInvariant
             eventDerived.TryGetValue(account.AccountNumber, out var evt);
 
             var status = Classify(stored, crud, evt);
-            verdicts.Add(new NumericVerdict(
-                account.AccountNumber, stored, crud, evt, status));
+            verdicts.Add(new NumericVerdict(account.AccountNumber, stored, crud, evt, status));
         }
 
         return verdicts;

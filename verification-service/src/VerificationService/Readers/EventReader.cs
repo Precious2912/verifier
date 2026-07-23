@@ -15,13 +15,17 @@ public class EventReader(string connectionString)
         return [.. rows];
     }
 
-    public async Task<IReadOnlyList<EventRecord>> GetEventsForReferencesAsync(
-    IReadOnlyCollection<string> references)
+    public async Task<IReadOnlyList<EventRecord>> GetEventsForReferencesAsync(IReadOnlyCollection<string> references)
     {
         if (references.Count == 0) return [];
         await using var conn = new NpgsqlConnection(_connectionString);
-        var rows = await conn.QueryAsync<EventRecord>(
-            Queries.GetEventsForReferences, new { references = references.ToArray() });
+        var rows = await conn.QueryAsync<EventRecord>(Queries.GetEventsForReferences, new { references = references.ToArray() });
         return [.. rows];
+    }
+
+    public async Task WarmUpAsync()
+    {
+        await using var c = new NpgsqlConnection(_connectionString);
+        await c.ExecuteScalarAsync<int>("SELECT 1;");
     }
 }

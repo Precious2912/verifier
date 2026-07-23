@@ -12,18 +12,16 @@ public class Worker(
     MigrationCheckpointReader migrationCheckpoint,
     VerificationCheckpointStore verificationCheckpoint,
     DetectionScorer scorer,
-    ILogger<Worker> logger,
-    IHostApplicationLifetime lifetime)
-    : BackgroundService
+    VerificationOptions options,
+    ILogger<Worker> _logger,
+    IHostApplicationLifetime lifetime) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        var loopMode = Environment.GetEnvironmentVariable("VERIFY_MODE") == "loop";
-        var intervalMs = int.TryParse(Environment.GetEnvironmentVariable("VERIFY_INTERVAL_MS"), out var i)
-            ? i : 3000;
-
-        if (loopMode)
-            logger.LogInformation("Verification running in LOOP mode (every {Interval}ms). Ctrl+C to stop.", intervalMs);
+        if (options.Concurrent)
+        {
+            _logger.LogInformation("Verification running in CONCURRENT mode (every {Interval}ms). Ctrl+C to stop.", options.IntervalMs);
+        }
 
         do
         {
@@ -34,79 +32,126 @@ public class Worker(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Verification pass failed");
-                if (!loopMode) throw;   // one-off: surface it; loop: log and keep going
+                _logger.LogError(ex, "Verification pass failed");
+                if (!options.Concurrent) throw;
             }
 
-            if (!loopMode) break;
+            if (!options.Concurrent) break;
 
-            logger.LogInformation("--- next pass in {Interval}ms ---", intervalMs);
-            try { await Task.Delay(intervalMs, ct); }
-            catch (TaskCanceledException) { break; }
+            //logger.LogInformation("--- next pass in {Interval}ms ---", options.IntervalMs);
+            try
+            {
+                await Task.Delay(options.IntervalMs, ct);
+            }
+
+            catch (TaskCanceledException)
+            {
+                break;
+            }
         }
         while (!ct.IsCancellationRequested);
 
-        if (!loopMode)
+        if (!options.Concurrent)
             lifetime.StopApplication();
     }
-
     private async Task LogAndScoreAsync(VerificationResult result)
     {
-        var numeric = result.Numeric;
-        var record = result.Record;
-        var snapshot = result.Snapshot;
+        var status = ComputeStatus(result);
+        LogPassSummary(result, status);
 
-        var numericFlagged = numeric.Verdicts.Where(v => v.Status != VerdictStatus.Consistent).ToList();
-        foreach (var v in numericFlagged)
-            logger.LogWarning("Numeric flagged {Account}: stored={Stored}, crud={Crud}, event={Event} -> {Status}",
+        if (status.HasMismatches)
+            LogMismatches(status);
+
+        // Scoring is for controlled trials. In concurrent mode the evidence is the
+        // live log; per-pass scoring would inflate the results table.
+        if (!options.Concurrent)
+            await ScoreAndLogResultsAsync(result);
+    }
+    private static PassStatus ComputeStatus(VerificationResult result)
+    {
+        var numericFlagged = result.Numeric.Verdicts
+            .Where(v => v.Status != VerdictStatus.Consistent)
+            .ToList();
+
+        // PendingSync is not an anomaly: the record is legitimately not yet migrated.
+        var recordAnomalies = result.Record.Verdicts
+            .Where(v => v.Status != RecordStatus.Matched && v.Status != RecordStatus.PendingSync)
+            .ToList();
+
+        var pendingSync = result.Record.Verdicts.Count(v => v.Status == RecordStatus.PendingSync);
+
+        return new PassStatus(numericFlagged, recordAnomalies, pendingSync, result.Snapshot.Verdict);
+    }
+    private void LogPassSummary(VerificationResult result, PassStatus status)
+    {
+        var n = result.Numeric;
+        var r = result.Record;
+        var s = result.Snapshot;
+
+        _logger.LogInformation(
+            "Pass: numeric {NumOk}/{NumTotal} consistent, record {RecOk}/{RecTotal} matched ({Pending} pending sync), " +
+            "snapshot {Snapshot} | timing n={NL:F1}+{NC:F1}ms r={RL:F1}+{RC:F1}ms s={SL:F1}+{SC:F1}ms (load+compute)",
+            n.Verdicts.Count - status.NumericFlagged.Count, n.Verdicts.Count,
+            r.Verdicts.Count - status.RecordAnomalies.Count - status.PendingSync, r.Verdicts.Count, status.PendingSync,
+            status.SnapshotVerdict?.Status.ToString() ?? "n/a",
+            n.LoadTime.TotalMilliseconds, n.ComputeTime.TotalMilliseconds,
+            r.LoadTime.TotalMilliseconds, r.ComputeTime.TotalMilliseconds,
+            s.LoadTime.TotalMilliseconds, s.ComputeTime.TotalMilliseconds);
+    }
+
+    private void LogMismatches(PassStatus status)
+    {
+        foreach (var v in status.NumericFlagged)
+            _logger.LogWarning("Numeric flagged {Account}: stored={Stored}, crud={Crud}, event={Event} -> {Status}",
                 v.AccountNumber, v.StoredBalance, v.CrudDerivedBalance, v.EventDerivedBalance, v.Status);
-        logger.LogInformation("Numeric: {Consistent}/{Total} consistent",
-            numeric.Verdicts.Count - numericFlagged.Count, numeric.Verdicts.Count);
 
-        var recordAnomalies = record.Verdicts.Where(v => v.Status != RecordStatus.Matched).ToList();
-        foreach (var v in recordAnomalies)
-            logger.LogWarning("Record flagged {Reference} [{Type}/{Account}]: crud={Crud}, event={Event} -> {Status}",
+        foreach (var v in status.RecordAnomalies)
+            _logger.LogWarning("Record flagged {Reference} [{Type}/{Account}]: crud={Crud}, event={Event} -> {Status}",
                 v.Reference, v.Type, v.Account, v.CrudAmount, v.EventAmount, v.Status);
-        logger.LogInformation("Record-level: {Matched}/{Total} matched",
-            record.Verdicts.Count(v => v.Status == RecordStatus.Matched), record.Verdicts.Count);
 
-        if (snapshot.Verdict is not null)
+        if (status.SnapshotMismatched)
         {
-            var s = snapshot.Verdict;
-            if (s.Status is SnapshotStatus.CountMismatch or SnapshotStatus.SumMismatch)
-                logger.LogWarning("Snapshot slice: crud={CrudCount}/{CrudSum}, event={EventCount}/{EventSum} -> {Status}",
-                    s.CrudCount, s.CrudGrossSum, s.EventCount, s.EventGrossSum, s.Status);
-            else
-                logger.LogInformation("Snapshot slice: crud={CrudCount}/{CrudSum}, event={EventCount}/{EventSum} -> {Status}",
-                    s.CrudCount, s.CrudGrossSum, s.EventCount, s.EventGrossSum, s.Status);
-        }
-
-        logger.LogInformation("Numeric  — load={L:F1}ms compute={C:F1}ms",
-            numeric.LoadTime.TotalMilliseconds, numeric.ComputeTime.TotalMilliseconds);
-        logger.LogInformation("Record   — load={L:F1}ms compute={C:F1}ms",
-            record.LoadTime.TotalMilliseconds, record.ComputeTime.TotalMilliseconds);
-        logger.LogInformation("Snapshot — load={L:F1}ms compute={C:F1}ms",
-            snapshot.LoadTime.TotalMilliseconds, snapshot.ComputeTime.TotalMilliseconds);
-
-        var summary = await scorer.ScoreAsync(result);
-        if (summary is not null)
-        {
-            foreach (var d in summary.Detections)
-                logger.LogInformation("SCORING {FaultType} (ref={Ref}, acct={Account}): numeric={N}, record={R}, snapshot={S}",
-                    d.FaultType, d.TargetRef, d.TargetAccount, d.NumericCaught, d.RecordCaught, d.SnapshotCaught);
-            logger.LogInformation("False positives — numeric={NumFP}, record={RecFP}",
-                summary.NumericFalsePositives, summary.RecordFalsePositives);
-        }
-        else
-        {
-            logger.LogInformation("No active faults — nothing to score");
+            var s = status.SnapshotVerdict!;
+            _logger.LogWarning("Snapshot slice: crud={CrudCount}/{CrudSum}, event={EventCount}/{EventSum} -> {Status}",
+                s.CrudCount, s.CrudGrossSum, s.EventCount, s.EventGrossSum, s.Status);
         }
     }
 
+    private async Task ScoreAndLogResultsAsync(VerificationResult result)
+    {
+        var summary = await scorer.ScoreAsync(result);
+
+        if (summary is null)
+        {
+            _logger.LogInformation("No active faults — nothing scored");
+            return;
+        }
+
+        foreach (var d in summary.Detections)
+            _logger.LogInformation("SCORING {FaultType} ({Ref}/{Account}): numeric={N}, record={R}, snapshot={S}",
+                d.FaultType, d.TargetRef, d.TargetAccount, d.NumericCaught, d.RecordCaught, d.SnapshotCaught);
+
+        _logger.LogInformation("False positives — numeric={NumFP}, record={RecFP}",
+            summary.NumericFalsePositives, summary.RecordFalsePositives);
+    }
+
+    private record PassStatus(IReadOnlyList<NumericVerdict> NumericFlagged, IReadOnlyList<RecordVerdict> RecordAnomalies, int PendingSync, SnapshotVerdict? SnapshotVerdict)
+    {
+        public bool SnapshotMismatched =>
+            SnapshotVerdict?.Status is SnapshotStatus.CountMismatch or SnapshotStatus.SumMismatch;
+
+        public bool HasMismatches =>
+            NumericFlagged.Count > 0 || RecordAnomalies.Count > 0 || SnapshotMismatched;
+    }
     public async Task<VerificationResult> RunPassAsync(CancellationToken ct)
     {
         await verificationCheckpoint.EnsureTableAsync();
         var migrationCp = await migrationCheckpoint.GetAsync();
+
+        // The compute time for the first approach is higher. 
+        // Added this to prevent that by warming both connection pools. 
+        await crud.WarmUpAsync();
+        await events.WarmUpAsync();
 
         var numeric = await RunNumericAsync();
         var record = await RunRecordAsync(migrationCp);
@@ -170,4 +215,6 @@ public class Worker(
 
         return new SnapshotResult(verdict, loadSw.Elapsed, computeSw.Elapsed);
     }
+
 }
+public record VerificationOptions(bool Concurrent, int IntervalMs);

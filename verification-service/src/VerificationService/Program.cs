@@ -1,7 +1,6 @@
 using Serilog;
 using VerificationService;
 using VerificationService.Checkpoints;
-using VerificationService.Invariants;
 using VerificationService.Readers;
 using VerificationService.Verdicts;
 
@@ -21,26 +20,27 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Services.AddSerilog();
 
-//Connections
+// Run options
+var concurrent = Args.Has(args, "--concurrent");
+var intervalMs = Args.GetInt(args, "--interval", 3000);
+builder.Services.AddSingleton(new VerificationOptions(concurrent, intervalMs));
+
+// Connections
 var crudConn = config.GetConnectionString("CrudDb")!;
 var eventConn = config.GetConnectionString("EventsDb")!;
 builder.Services.AddSingleton(new CrudReader(crudConn));
 builder.Services.AddSingleton(new EventReader(eventConn));
 
-//Readers & Checkpoints
+// Checkpoints
 builder.Services.AddSingleton(new MigrationCheckpointReader(eventConn));
 builder.Services.AddSingleton(new VerificationCheckpointStore(eventConn));
 
-//Invariants
-builder.Services.AddSingleton<NumericInvariant>();
-builder.Services.AddSingleton<RecordLevelInvariant>();
-builder.Services.AddSingleton<SnapshotInvariant>();
-
-//Scorer
+// Scorer
 builder.Services.AddSingleton(new DetectionScorer(eventConn, crudConn));
 
-//Worker
+// Worker
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 await host.RunAsync();
+await Log.CloseAndFlushAsync();

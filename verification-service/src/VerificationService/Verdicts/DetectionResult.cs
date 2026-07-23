@@ -9,7 +9,8 @@ public record FaultDetection(
     string? TargetAccount,
     bool NumericCaught,
     bool RecordCaught,
-    bool SnapshotCaught);
+    bool SnapshotCaught
+    );
 
 public record ScoringSummary(
     int FaultCount,
@@ -26,9 +27,10 @@ public class DetectionScorer(string eventsConnectionString, string crudConnectio
     {
         try
         {
-            await using var c = new NpgsqlConnection(_eventConn);
+            await using var conn = new NpgsqlConnection(_eventConn);
+            await EnsureResultsTableAsync(conn);
 
-            var faults = (await c.QueryAsync<(string FaultType, string Scenario, string? TargetRef, string? TargetAccount)>(
+            var faults = (await conn.QueryAsync<(string FaultType, string Scenario, string? TargetRef, string? TargetAccount)>(
                 Queries.GetFaults)).ToList();
 
             if (faults.Count == 0)
@@ -58,14 +60,14 @@ public class DetectionScorer(string eventsConnectionString, string crudConnectio
             var injectedRefs = faults.Select(f => f.TargetRef).Where(r => r != null).ToHashSet();
 
             var detections = new List<FaultDetection>();
-            foreach (var f in faults)
+            foreach (var (FaultType, Scenario, TargetRef, TargetAccount) in faults)
             {
-                var numericCaught = f.TargetAccount != null && numericFlagged.Contains(f.TargetAccount);
-                var recordCaught = f.TargetRef != null && recordFlagged.Contains(f.TargetRef);
+                var numericCaught = TargetAccount != null && numericFlagged.Contains(TargetAccount);
+                var recordCaught = TargetRef != null && recordFlagged.Contains(TargetRef);
                 var snapshotCaught = snapshotFlagged;
 
                 detections.Add(new FaultDetection(
-                    f.FaultType, f.TargetRef, f.TargetAccount,
+                    FaultType, TargetRef, TargetAccount,
                     numericCaught, recordCaught, snapshotCaught));
             }
 
@@ -74,10 +76,9 @@ public class DetectionScorer(string eventsConnectionString, string crudConnectio
 
             var summary = new ScoringSummary(faults.Count, detections, numericFPs, recordFPs);
 
-            await EnsureResultsTableAsync(c);
             foreach (var d in detections)
             {
-                await c.ExecuteAsync(Queries.InsertResults, new
+                await conn.ExecuteAsync(Queries.InsertResults, new
                 {
                     Id = Guid.NewGuid(),
                     Scenario = scenario,
@@ -90,7 +91,7 @@ public class DetectionScorer(string eventsConnectionString, string crudConnectio
                     d.SnapshotCaught,
                     NumericFPs = numericFPs,
                     RecordFPs = recordFPs,
-                    // per-approach load + compute
+                    // per-approach load and compute time
                     NumericLoadMs = result.Numeric.LoadTime.TotalMilliseconds,
                     NumericComputeMs = result.Numeric.ComputeTime.TotalMilliseconds,
                     RecordLoadMs = result.Record.LoadTime.TotalMilliseconds,

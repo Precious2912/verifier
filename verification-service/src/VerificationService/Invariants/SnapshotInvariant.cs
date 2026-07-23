@@ -8,7 +8,8 @@ public class SnapshotInvariant
     public static SnapshotVerdict Check(
         DateTime from, DateTime to,
         IReadOnlyList<CrudTransaction> sliceTransactions,
-        IReadOnlyList<EventRecord> sliceEvents)
+        IReadOnlyList<EventRecord> sliceEvents
+        )
     {
         if (sliceTransactions.Count == 0 && sliceEvents.Count == 0)
             return new SnapshotVerdict(from, to, 0, 0, 0, 0, SnapshotStatus.EmptySlice);

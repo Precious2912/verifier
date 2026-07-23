@@ -22,12 +22,16 @@ public class CrudReader(string connectionString)
         return [.. rows];
     }
 
-    public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsInSliceAsync(
-    DateTime fromCreatedAt, Guid fromId,
-    DateTime toCreatedAt, Guid toId)
+    public async Task<IReadOnlyList<CrudTransaction>> GetTransactionsInSliceAsync(DateTime fromCreatedAt, Guid fromId, DateTime toCreatedAt, Guid toId)
     {
         await using var conn = new NpgsqlConnection(_connectionString);
         var rows = await conn.QueryAsync<CrudTransaction>(Queries.GetTransactionsInSlice, new { fromCreatedAt, fromId, toCreatedAt, toId });
         return [.. rows];
+    }
+
+    public async Task WarmUpAsync()
+    {
+        await using var c = new NpgsqlConnection(_connectionString);
+        await c.ExecuteScalarAsync<int>("SELECT 1;");
     }
 }

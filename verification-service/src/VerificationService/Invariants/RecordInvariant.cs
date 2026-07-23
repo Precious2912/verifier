@@ -9,7 +9,8 @@ public class RecordLevelInvariant
     public static IReadOnlyList<RecordVerdict> Check(
         IReadOnlyList<CrudTransaction> transactions,
         IReadOnlyList<EventRecord> events,
-        MigrationCheckpoint? checkpoint)
+        MigrationCheckpoint? checkpoint
+        )
     {
         // Lookup of events by their matching key: (Reference, Type, Account).
         // Event type maps back to CRUD type: account_debited -> Debit, account_credited -> Credit.
@@ -71,20 +72,6 @@ public class RecordLevelInvariant
                     t.Reference, t.Type, ownAccount, t.Amount, null, status));
             }
         }
-
-        /*         // Check 2: any event with no matching CRUD row. Spurious events
-                foreach (var (key, list) in eventLookup)
-                {
-                    if (matchedEventKeys.Contains(key)) continue;
-
-                    foreach (var e in list)
-                    {
-                        var crudType = e.Type == "account_debited" ? "Debit" : "Credit";
-                        verdicts.Add(new RecordVerdict(
-                            e.Reference ?? "", crudType, e.StreamId, null, e.Amount,
-                            RecordStatus.SpuriousEvent));
-                    }
-                } */
 
         return verdicts;
     }

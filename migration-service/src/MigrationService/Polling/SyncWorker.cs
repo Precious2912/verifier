@@ -4,12 +4,7 @@ using MigrationService.Shared;
 
 namespace MigrationService.Polling;
 
-public class SyncWorker(
-    Reader crudReader,
-    CheckpointStore checkpointStore,
-    IDocumentStore eventStore,
-    ILogger<SyncWorker> logger)
-    : BackgroundService
+public class SyncWorker(Reader crudReader, CheckpointStore checkpointStore, IDocumentStore eventStore, ILogger<SyncWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(5);
 
@@ -50,7 +45,7 @@ public class SyncWorker(
                 logger.LogWarning("Unknown type '{Type}' ref {Ref}", t.Type, t.Reference);
                 continue;
             }
-            // Stream already exists from backfill -> Append, not StartStream.
+            // Stream already exists from backfill. Append, not StartStream.
             session.Events.Append(mapped.Value.StreamKey, mapped.Value.Event);
         }
 

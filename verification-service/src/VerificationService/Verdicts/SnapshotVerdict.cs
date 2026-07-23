@@ -8,8 +8,4 @@ public enum SnapshotStatus
     EmptySlice // nothing new to verify
 }
 
-public record SnapshotVerdict(
-    DateTime FromCreatedAt, DateTime ToCreatedAt,
-    int CrudCount, int EventCount,
-    decimal CrudGrossSum, decimal EventGrossSum,
-    SnapshotStatus Status);
+public record SnapshotVerdict(DateTime FromCreatedAt, DateTime ToCreatedAt, int CrudCount, int EventCount, decimal CrudGrossSum, decimal EventGrossSum, SnapshotStatus Status);

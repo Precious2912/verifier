@@ -4,7 +4,7 @@ namespace VerificationService.Invariants;
 
 public static class BalanceAggregator
 {
-    // CRUD: Credit row -> +Amount to CreditAccount; Debit row -> -Amount to DebitAccount.
+    // CRUD: +Amount to CreditAccount; -Amount to DebitAccount.
     public static Dictionary<string, decimal> FoldCrud(
         IEnumerable<CrudTransaction> transactions)
     {
@@ -21,7 +21,7 @@ public static class BalanceAggregator
         return balances;
     }
 
-    // Events: account_credited -> +Amount to its stream; account_debited -> -Amount.
+    // Events: +Amount to account_credited stream; -Amount to account_debited stream.
     public static Dictionary<string, decimal> FoldEvents(
         IEnumerable<EventRecord> events)
     {

@@ -2,10 +2,9 @@
 set -e
 
 FAULT=$1
-N=${2:-5}
+N=${2:-10}
 
 EVENTS_CONTAINER="event-pg"
-
 INJECTOR="fault-injector/src/FaultInjector"
 VERIFIER="verification-service/src/VerificationService"
 
@@ -14,12 +13,12 @@ echo "=== Running $N trials of '$FAULT' ==="
 for i in $(seq 1 $N); do
   echo "--- $FAULT trial $i/$N ---"
 
-docker exec -i "$EVENTS_CONTAINER" psql -U postgres -d events -q \
-  -c "DELETE FROM event_store.verification_checkpoint;" 2>/dev/null || true
+  docker exec -i "$EVENTS_CONTAINER" psql -U postgres -d events -q \
+    -c "DELETE FROM event_store.verification_checkpoint;" 2>/dev/null || true
 
-  FAULT_MODE=inject FAULT_TYPE=$FAULT dotnet run --project $INJECTOR
+  dotnet run --project $INJECTOR -- --mode inject --fault $FAULT
   dotnet run --project $VERIFIER
-  FAULT_MODE=revert dotnet run --project $INJECTOR
+  dotnet run --project $INJECTOR -- --mode revert
 
   ACTIVE=$(docker exec -i "$EVENTS_CONTAINER" psql -U postgres -d events -tAc \
     "SELECT COUNT(*) FROM evaluation.injected_faults WHERE reverted = FALSE;")

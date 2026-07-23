@@ -1,6 +1,7 @@
 #!/bin/bash
-# batch_inject.sh — inject N mixed faults tagged as one batch, verify, score, revert
+# Inject N mixed faults tagged as one batch, verify, score, revert.
 set -e
+
 N=$1
 EVENTS_CONTAINER="event-pg"
 INJECTOR="fault-injector/src/FaultInjector"
@@ -15,14 +16,14 @@ docker exec -i "$EVENTS_CONTAINER" psql -U postgres -d events -q \
 
 for ((i=0; i<N; i++)); do
   FAULT=${FAULTS[$((i % ${#FAULTS[@]}))]}
-  FAULT_MODE=inject FAULT_TYPE=$FAULT SCENARIO=$SCENARIO dotnet run --project $INJECTOR
+  dotnet run --project $INJECTOR -- --mode inject --fault $FAULT --scenario $SCENARIO
 done
 
 echo "=== Injected $N faults tagged '$SCENARIO'. Verifying... ==="
 dotnet run --project $VERIFIER
 
 echo "=== Reverting all $N faults ==="
-FAULT_MODE=revert dotnet run --project $INJECTOR
+dotnet run --project $INJECTOR -- --mode revert
 
 ACTIVE=$(docker exec -i "$EVENTS_CONTAINER" psql -U postgres -d events -tAc \
   "SELECT COUNT(*) FROM evaluation.injected_faults WHERE reverted = FALSE;")
