@@ -1,4 +1,5 @@
 using EventStore.Core;
+using MigrationService;
 using MigrationService.Backfill;
 using MigrationService.Crud;
 using MigrationService.Polling;
@@ -13,8 +14,8 @@ builder.Services.AddSingleton(new Reader(crudConn));
 builder.Services.AddSingleton(new CheckpointStore(eventConn));
 builder.Services.AddEventStore(eventConn);
 
-var mode = args.FirstOrDefault(a => a.StartsWith("--mode="))?.Split('=')[1]
-           ?? "backfill";
+
+var mode = Args.GetValue(args, "--mode", "sync");
 
 if (mode == "sync")
 {
