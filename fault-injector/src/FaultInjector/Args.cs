@@ -2,7 +2,7 @@ namespace FaultInjector;
 
 public static class Args
 {
-    /// Returns the value following a flag, or null. e.g. --mode inject -> "inject"
+    // Returns the value following a flag, or null. e.g. --mode inject 
     public static string? GetValue(string[] args, string flag)
     {
         var i = Array.IndexOf(args, flag);
@@ -13,11 +13,4 @@ public static class Args
 
     public static string GetValue(string[] args, string flag, string fallback)
         => GetValue(args, flag) ?? fallback;
-
-    public static int GetInt(string[] args, string flag, int fallback)
-        => int.TryParse(GetValue(args, flag), out var v) ? v : fallback;
-
-    /// True if a bare flag is present. e.g. --seed
-    public static bool Has(string[] args, string flag)
-        => args.Contains(flag);
 }

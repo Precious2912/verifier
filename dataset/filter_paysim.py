@@ -1,9 +1,9 @@
 import pandas as pd
 
-INPUT = "paysim_dataset.csv"            # your original 6M-row file (use exact name from `ls`)
-OUTPUT = "paysim_c2c_transfers.csv"     # filtered + trimmed result
+INPUT = "paysim_dataset.csv" #original paysim data (6m records)
+OUTPUT = "paysim_c2c_transfers.csv" # filtered result
 
-keep = ["step", "amount", "nameOrig", "nameDest"]
+keep = ["step", "amount", "nameOrig", "nameDest"] #columns needed
 chunks = []
 for chunk in pd.read_csv(INPUT, chunksize=100_000):
     filtered = chunk[
@@ -11,7 +11,7 @@ for chunk in pd.read_csv(INPUT, chunksize=100_000):
         & (chunk["nameOrig"].str.startswith("C"))
         & (chunk["nameDest"].str.startswith("C"))
     ]
-    chunks.append(filtered[keep])      # keep only the columns we need
+    chunks.append(filtered[keep])
 
 result = pd.concat(chunks, ignore_index=True)
 result.to_csv(OUTPUT, index=False)
